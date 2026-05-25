@@ -12,6 +12,7 @@
     --ink: #1f1f1f;
     --muted: #6b6b6b;
     --accent: #b97441;
+    --warning: #c0524a;
     --border: #e7e2d6;
     --shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
@@ -22,6 +23,7 @@
       --ink: #efece4;
       --muted: #9a9a9a;
       --accent: #d99564;
+      --warning: #e07b6f;
       --border: #2e2e2e;
       --shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
@@ -146,6 +148,22 @@
     position: absolute; top: 0; bottom: 0;
     background: var(--accent); opacity: 0.3;
   }
+  .day-track.invalid::after {
+    content: ''; position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 4px; transform: translateY(-50%);
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--warning) 0 6px,
+      transparent 6px 12px
+    );
+    opacity: 0.75;
+  }
+  .day-time.invalid,
+  .day-time.invalid .t-main,
+  .day-time.invalid .t-side,
+  .day-time.invalid .t-inner,
+  .day-time.invalid .t-sep { color: var(--warning); }
   .day {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 0.85rem 1rem;
@@ -675,7 +693,14 @@ function dayTimeHtml(day) {
   }</span>` : '';
 
   const sep = (start && end) ? `<span class="t-sep">–</span>` : '';
-  return `<div class="day-time">${startGroup}${sep}${endGroup}</div>`;
+  const invalid = isInvalidDayTimes(day);
+  return `<div class="day-time${invalid ? ' invalid' : ''}">${startGroup}${sep}${endGroup}</div>`;
+}
+
+function isInvalidDayTimes(day) {
+  const s = hhmmToMinutes(day.start);
+  const e = hhmmToMinutes(day.end);
+  return s !== null && e !== null && e <= s;
 }
 
 function fmtSavedAt(iso) {
@@ -752,7 +777,8 @@ function dayTimelineHtml(day) {
     bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></div>`;
   }
 
-  return `<div class="day-track">${bars}</div>`;
+  const invalid = isInvalidDayTimes(day);
+  return `<div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>`;
 }
 
 function render() {
