@@ -205,6 +205,54 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  .modal {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .modal[hidden] { display: none; }
+  .modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .modal-card {
+    position: relative;
+    background: var(--card); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+    width: 100%; max-width: 360px;
+  }
+  .modal-card h2 {
+    margin: 0 0 0.9rem; font-size: 1rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 600;
+  }
+  .setting-row {
+    display: flex; justify-content: space-between;
+    align-items: center; gap: 0.75rem;
+    margin-bottom: 0.55rem;
+  }
+  .setting-row label { font-size: 0.92rem; }
+  .setting-row input[type=time] {
+    font: inherit; padding: 0.3rem 0.45rem;
+    background: var(--bg); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 0.4rem;
+    margin-top: 1rem;
+  }
+  .modal-actions button {
+    font: inherit; padding: 0.4rem 0.85rem;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--ink); border-radius: 7px; cursor: pointer;
+  }
+  .modal-actions button:hover { border-color: var(--accent); }
+  .modal-actions button.primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+
   @media (max-width: 520px) {
     body { padding: 0.6rem; font-size: 15px; }
     h1 { font-size: 1.05rem; }
@@ -304,6 +352,7 @@
     </label>
     <button id="duplicateBtn" data-i18n="duplicate">Duplicate &rarr; next week</button>
     <button id="newWeekBtn" data-i18n="newWeek">New (blank) week</button>
+    <button id="settingsBtn" data-i18n="settings">Settings</button>
     <div class="week-picker">
       <span data-i18n="weekOf">Week of</span>
       <input type="date" id="weekStart">
@@ -316,10 +365,43 @@
 
 <div class="toast" id="toast"></div>
 
+<div class="modal" id="settingsModal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-card" role="dialog" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading" data-i18n="settingsTitle">Time settings</h2>
+    <div class="setting-row">
+      <label for="setStartMin" data-i18n="earliestStart">Earliest start</label>
+      <input type="time" id="setStartMin">
+    </div>
+    <div class="setting-row">
+      <label for="setStartMax" data-i18n="latestStart">Latest start</label>
+      <input type="time" id="setStartMax">
+    </div>
+    <div class="setting-row">
+      <label for="setEndMin" data-i18n="earliestEnd">Earliest end</label>
+      <input type="time" id="setEndMin">
+    </div>
+    <div class="setting-row">
+      <label for="setEndMax" data-i18n="latestEnd">Latest end</label>
+      <input type="time" id="setEndMax">
+    </div>
+    <div class="modal-actions">
+      <button id="settingsResetBtn" type="button" data-i18n="reset">Reset</button>
+      <button id="settingsCancelBtn" type="button" data-modal-close data-i18n="cancel">Cancel</button>
+      <button id="settingsSaveBtn" type="button" class="primary" data-i18n="save">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const DRAFT_KEY = 'nanny-schedule-draft';
 const SAVED_AT_KEY = 'nanny-schedule-saved-at';
 const LANG_KEY = 'nanny-schedule-lang';
+const SETTINGS_KEY = 'nanny-schedule-settings';
+const DEFAULT_SETTINGS = {
+  startMin: '07:00', startMax: '14:00',
+  endMin: '12:00',  endMax: '20:00'
+};
 
 const T = {
   en: {
@@ -331,6 +413,15 @@ const T = {
     import: 'Import',
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
+    settings: 'Settings',
+    settingsTitle: 'Time settings',
+    earliestStart: 'Earliest start',
+    latestStart: 'Latest start',
+    earliestEnd: 'Earliest end',
+    latestEnd: 'Latest end',
+    save: 'Save',
+    cancel: 'Cancel',
+    reset: 'Reset',
     weekOf: 'Week of',
     hours: 'Hours',
     bufferLabel: 'Buffer',
@@ -367,6 +458,15 @@ const T = {
     import: 'Importar',
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
+    settings: 'Ajustes',
+    settingsTitle: 'Ajustes de hora',
+    earliestStart: 'Inicio más temprano',
+    latestStart: 'Inicio más tarde',
+    earliestEnd: 'Fin más temprano',
+    latestEnd: 'Fin más tarde',
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    reset: 'Restablecer',
     weekOf: 'Semana del',
     hours: 'Horas',
     bufferLabel: 'Margen',
@@ -401,6 +501,7 @@ function t(key) { return (T[lang] && T[lang][key]) || T.en[key] || key; }
 function locale() { return lang; }
 
 let state = freshState();
+let settings = loadSettings();
 let saveTimer = null;
 let lastSavedAt = null;
 
@@ -505,12 +606,12 @@ function fmtWeekLabel(iso) {
   return `${start.toLocaleDateString(locale(), opts)} – ${end.toLocaleDateString(locale(), yearOpts)}`;
 }
 
-function timeOptionsHtml(selected) {
+function timeOptionsHtml(selected, fromHHMM, toHHMM) {
+  const from = hhmmToMinutes(fromHHMM);
+  const to = hhmmToMinutes(toHHMM);
   const times = [];
-  for (let h = 5; h <= 23; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      times.push(String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'));
-    }
+  if (from !== null && to !== null && to >= from) {
+    for (let m = from; m <= to; m += 15) times.push(minutesToHhmm(m));
   }
   if (selected && !times.includes(selected)) {
     times.push(selected);
@@ -608,9 +709,9 @@ function render() {
         <div class="field">
           <label>${escapeHtml(t('hours'))}</label>
           <div class="time-row">
-            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start)}</select>
+            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start, settings.startMin, settings.startMax)}</select>
             <span class="dash">–</span>
-            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end)}</select>
+            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end, settings.endMin, settings.endMax)}</select>
           </div>
         </div>
         <div class="field">
@@ -679,6 +780,26 @@ function scheduleSave() {
     }
     renderSavedIndicator();
   }, 400);
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const p = JSON.parse(raw);
+    return {
+      startMin: p.startMin || DEFAULT_SETTINGS.startMin,
+      startMax: p.startMax || DEFAULT_SETTINGS.startMax,
+      endMin:   p.endMin   || DEFAULT_SETTINGS.endMin,
+      endMax:   p.endMax   || DEFAULT_SETTINGS.endMax
+    };
+  } catch (e) {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
 }
 
 function loadDraft() {
@@ -878,6 +999,60 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
   } else {
     window.prompt(t('sharePrompt'), url);
   }
+});
+
+// --- Settings modal ---
+
+const settingsModal = document.getElementById('settingsModal');
+
+function openSettings() {
+  document.getElementById('setStartMin').value = settings.startMin;
+  document.getElementById('setStartMax').value = settings.startMax;
+  document.getElementById('setEndMin').value   = settings.endMin;
+  document.getElementById('setEndMax').value   = settings.endMax;
+  settingsModal.hidden = false;
+}
+
+function closeSettings() {
+  settingsModal.hidden = true;
+}
+
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+settingsModal.addEventListener('click', e => {
+  if (e.target.closest('[data-modal-close]')) closeSettings();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
+});
+
+document.getElementById('settingsResetBtn').addEventListener('click', () => {
+  document.getElementById('setStartMin').value = DEFAULT_SETTINGS.startMin;
+  document.getElementById('setStartMax').value = DEFAULT_SETTINGS.startMax;
+  document.getElementById('setEndMin').value   = DEFAULT_SETTINGS.endMin;
+  document.getElementById('setEndMax').value   = DEFAULT_SETTINGS.endMax;
+});
+
+document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+  const next = {
+    startMin: document.getElementById('setStartMin').value || DEFAULT_SETTINGS.startMin,
+    startMax: document.getElementById('setStartMax').value || DEFAULT_SETTINGS.startMax,
+    endMin:   document.getElementById('setEndMin').value   || DEFAULT_SETTINGS.endMin,
+    endMax:   document.getElementById('setEndMax').value   || DEFAULT_SETTINGS.endMax
+  };
+  // If max < min, swap so the range is always valid.
+  if (hhmmToMinutes(next.startMax) < hhmmToMinutes(next.startMin)) {
+    [next.startMin, next.startMax] = [next.startMax, next.startMin];
+  }
+  if (hhmmToMinutes(next.endMax) < hhmmToMinutes(next.endMin)) {
+    [next.endMin, next.endMax] = [next.endMax, next.endMin];
+  }
+  settings = next;
+  saveSettings(settings);
+  closeSettings();
+  syncFromInputs();
+  render();
 });
 
 // --- Init ---
