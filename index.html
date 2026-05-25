@@ -654,10 +654,6 @@ function timeOptionsHtml(selected, fromHHMM, toHHMM) {
   if (from !== null && to !== null && to >= from) {
     for (let m = from; m <= to; m += 15) times.push(minutesToHhmm(m));
   }
-  if (selected && !times.includes(selected)) {
-    times.push(selected);
-    times.sort();
-  }
   let html = '<option value="">--:--</option>';
   for (const tm of times) {
     const sel = tm === selected ? ' selected' : '';
