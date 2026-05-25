@@ -154,6 +154,10 @@
     font-size: 0.78rem; color: var(--muted); font-weight: 500;
   }
   .day-time .t-sep { font-size: 1.05rem; }
+  .day-off {
+    color: var(--muted); font-style: italic;
+    font-size: 0.95rem; margin-bottom: 0.2rem;
+  }
   .day-title {
     color: var(--accent); font-weight: 500;
     margin-bottom: 0.2rem; font-size: 0.95rem;
@@ -334,6 +338,7 @@ const T = {
     bufferEnd: 'End',
     bufferNone: 'None',
     bufferMin: 'min',
+    dayOff: 'Day Off',
     themeLabel: 'Theme (optional)',
     themePlaceholder: 'e.g. Park day',
     planLabel: 'Plan',
@@ -369,6 +374,7 @@ const T = {
     bufferEnd: 'Fin',
     bufferNone: 'Ninguno',
     bufferMin: 'min',
+    dayOff: 'Día libre',
     themeLabel: 'Título (opcional)',
     themePlaceholder: 'p. ej. Día de parque',
     planLabel: 'Plan',
@@ -533,7 +539,7 @@ function dayTimeHtml(day) {
   const endMin = hhmmToMinutes(day.end);
   const early = (sBuf && startMin !== null) ? fmtTime(minutesToHhmm(startMin - sBuf)) : '';
   const late = (eBuf && endMin !== null) ? fmtTime(minutesToHhmm(endMin + eBuf)) : '';
-  if (!start && !end) return '';
+  if (!start && !end) return `<div class="day-off">${escapeHtml(t('dayOff'))}</div>`;
 
   const startGroup = start ? `<span class="t-group">${
     early ? `<span class="t-side">${escapeHtml(early)}</span><span class="t-inner">–</span>` : ''
