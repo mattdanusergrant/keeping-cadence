@@ -448,12 +448,13 @@ function normalizeDay(d) {
 }
 
 function bufferOptionsHtml(selected) {
+  const sel = Number(selected) || 0;
   const opts = [0, 15, 30, 45, 60];
   let html = '';
   for (const m of opts) {
-    const sel = m === selected ? ' selected' : '';
+    const selAttr = m === sel ? ' selected' : '';
     const label = m === 0 ? t('bufferNone') : `${m} ${t('bufferMin')}`;
-    html += `<option value="${m}"${sel}>${escapeHtml(label)}</option>`;
+    html += `<option value="${m}"${selAttr}>${escapeHtml(label)}</option>`;
   }
   return html;
 }
@@ -653,9 +654,15 @@ function renderSavedIndicator(override) {
   el.textContent = fmtSavedAt(lastSavedAt);
 }
 
+function coerceFieldValue(field, value) {
+  if (field === 'startBuffer' || field === 'endBuffer') return Number(value) || 0;
+  return value;
+}
+
 function syncFromInputs() {
   document.querySelectorAll('[data-day]').forEach(el => {
-    state.days[+el.dataset.day][el.dataset.field] = el.value;
+    const field = el.dataset.field;
+    state.days[+el.dataset.day][field] = coerceFieldValue(field, el.value);
   });
 }
 
@@ -770,10 +777,7 @@ document.getElementById('days').addEventListener('input', e => {
   const target = e.target;
   if (target.dataset && target.dataset.day !== undefined) {
     const field = target.dataset.field;
-    const value = (field === 'startBuffer' || field === 'endBuffer')
-      ? (Number(target.value) || 0)
-      : target.value;
-    state.days[+target.dataset.day][field] = value;
+    state.days[+target.dataset.day][field] = coerceFieldValue(field, target.value);
     scheduleSave();
   }
 });
