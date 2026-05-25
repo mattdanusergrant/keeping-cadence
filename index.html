@@ -45,7 +45,10 @@
   header .header-text { flex: 1; min-width: 0; }
   h1 { font-size: 1.4rem; margin: 0 0 0.15rem; font-weight: 600; }
   .week-label { color: var(--muted); font-size: 0.95rem; }
-  .header-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+  .header-actions {
+    display: flex; gap: 0.4rem; flex-shrink: 0;
+    align-items: center; flex-wrap: wrap; justify-content: flex-end;
+  }
   .header-actions button {
     font: inherit; padding: 0.4rem 0.85rem;
     background: var(--bg); border: 1px solid var(--border);
@@ -54,6 +57,24 @@
   .header-actions button:hover { border-color: var(--accent); }
   .header-actions button.primary {
     background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+
+  .lang-toggle {
+    display: inline-flex; gap: 0.15rem;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    padding: 0.2rem 0.25rem !important;
+    background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px;
+    cursor: pointer;
+  }
+  .lang-toggle span {
+    padding: 0.15rem 0.45rem; border-radius: 4px;
+    color: var(--muted);
+    transition: background 0.12s, color 0.12s;
+  }
+  body.lang-en .lang-toggle span[data-lang="en"],
+  body.lang-es .lang-toggle span[data-lang="es"] {
+    background: var(--accent); color: #fff;
   }
 
   .toolbar {
@@ -96,12 +117,14 @@
   .notes-section .content { white-space: pre-wrap; }
   .notes-section .content.empty { color: var(--muted); font-style: italic; }
 
-  textarea, input[type=text] {
-    width: 100%; font: inherit; padding: 0.5rem;
+  textarea, input[type=text], input[type=time] {
+    font: inherit; padding: 0.5rem;
     background: var(--bg); color: var(--ink);
-    border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+    border: 1px solid var(--border); border-radius: 6px;
   }
-  textarea { min-height: 3.5rem; line-height: 1.45; }
+  input[type=text] { width: 100%; }
+  textarea { width: 100%; min-height: 3.5rem; line-height: 1.45; resize: vertical; }
+  input[type=time] { padding: 0.35rem 0.45rem; }
 
   .days { display: grid; gap: 0.6rem; }
   .day {
@@ -111,22 +134,46 @@
   }
   .day-header {
     display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
   }
   .day-name { font-weight: 600; font-size: 1.05rem; }
   .day-date { color: var(--muted); font-size: 0.85rem; }
+  .day-time {
+    color: var(--accent); font-weight: 600; font-size: 1.05rem;
+    margin-bottom: 0.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .day-extras {
+    display: flex; gap: 0.85rem; flex-wrap: wrap;
+    color: var(--muted); font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+  }
+  .day-extras .extra-label { color: var(--muted); }
+  .day-extras .extra-time {
+    color: var(--ink); font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
   .day-title {
     color: var(--accent); font-weight: 500;
     margin-bottom: 0.2rem; font-size: 0.95rem;
   }
   .day-plan { white-space: pre-wrap; }
   .day-plan.empty { color: var(--muted); font-style: italic; }
-  .day .field { margin-bottom: 0.5rem; }
+  .day .field { margin-bottom: 0.55rem; }
   .day .field:last-child { margin-bottom: 0; }
-  .day .field label {
+  .day .field > label {
     display: block; font-size: 0.75rem;
     text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--muted); margin-bottom: 0.25rem;
+  }
+  .time-row {
+    display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+  }
+  .time-row .dash { color: var(--muted); }
+  .time-row .inline-label {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.85rem; color: var(--muted);
+    text-transform: none; letter-spacing: 0; margin-bottom: 0;
   }
 
   body.view-mode .editable { display: none; }
@@ -160,38 +207,42 @@
   }
 </style>
 </head>
-<body class="view-mode">
+<body class="view-mode lang-en">
 <div class="container">
   <header>
     <div class="header-text">
-      <h1>Nanny Schedule</h1>
+      <h1 data-i18n="title">Nanny Schedule</h1>
       <div class="week-label" id="weekLabel"></div>
     </div>
     <div class="header-actions">
-      <button id="shareBtn" title="Copy a link that loads this schedule">Share</button>
-      <button id="toggleMode" class="primary">Edit</button>
+      <button id="langBtn" class="lang-toggle" type="button" aria-label="Toggle language">
+        <span data-lang="en">EN</span><span data-lang="es">ES</span>
+      </button>
+      <button id="shareBtn" data-i18n="share">Share</button>
+      <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
     </div>
   </header>
 
   <div class="toolbar editable">
-    <button id="exportBtn">Export</button>
+    <button id="exportBtn" data-i18n="export">Export</button>
     <label class="file-label">
-      Import
+      <span data-i18n="import">Import</span>
       <input type="file" id="importFile" accept=".json" hidden>
     </label>
-    <button id="duplicateBtn">Duplicate &rarr; next week</button>
-    <button id="newWeekBtn">New (blank) week</button>
+    <button id="duplicateBtn" data-i18n="duplicate">Duplicate &rarr; next week</button>
+    <button id="newWeekBtn" data-i18n="newWeek">New (blank) week</button>
     <div class="week-picker">
-      <span>Week of</span>
+      <span data-i18n="weekOf">Week of</span>
       <input type="date" id="weekStart">
     </div>
     <span class="saved-indicator" id="savedIndicator"></span>
   </div>
 
   <section class="notes-section">
-    <h2>Week notes</h2>
+    <h2 data-i18n="weekNotes">Week notes</h2>
     <div class="readonly content" id="weekNotesView"></div>
     <textarea class="editable" id="weekNotes"
+      data-i18n-placeholder="notesPlaceholder"
       placeholder="Hours, drop-off / pick-up times, emergency contacts, allergies, standing rules..."></textarea>
   </section>
 
@@ -201,19 +252,108 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DRAFT_KEY = 'nanny-schedule-draft';
 const SAVED_AT_KEY = 'nanny-schedule-saved-at';
+const LANG_KEY = 'nanny-schedule-lang';
+
+const T = {
+  en: {
+    title: 'Nanny Schedule',
+    edit: 'Edit',
+    done: 'Done',
+    share: 'Share',
+    export: 'Export',
+    import: 'Import',
+    duplicate: 'Duplicate → next week',
+    newWeek: 'New (blank) week',
+    weekOf: 'Week of',
+    weekNotes: 'Week notes',
+    noNotes: 'No notes for this week.',
+    notesPlaceholder: 'Hours, drop-off / pick-up times, emergency contacts, allergies, standing rules...',
+    hours: 'Hours',
+    optional: 'Optional',
+    earlyStart: 'Early start',
+    lateEnd: 'Late end',
+    themeLabel: 'Theme (optional)',
+    themePlaceholder: 'e.g. Park day',
+    planLabel: 'Plan',
+    planPlaceholder: "What's happening that day...",
+    nothingPlanned: 'Nothing planned.',
+    from: 'From',
+    until: 'Until',
+    saving: 'Saving…',
+    saved: 'Saved',
+    shareCopied: 'Share link copied',
+    duplicated: 'Duplicated to next week',
+    confirmNewWeek: 'Start a fresh week? The current draft will be replaced.',
+    loadError: 'Could not load file: ',
+    invalidFile: 'Not a valid schedule file.',
+    sharePrompt: 'Copy this share link:'
+  },
+  es: {
+    title: 'Horario de niñera',
+    edit: 'Editar',
+    done: 'Listo',
+    share: 'Compartir',
+    export: 'Exportar',
+    import: 'Importar',
+    duplicate: 'Duplicar → próxima semana',
+    newWeek: 'Semana en blanco',
+    weekOf: 'Semana del',
+    weekNotes: 'Notas de la semana',
+    noNotes: 'Sin notas para esta semana.',
+    notesPlaceholder: 'Horario, entrega y recogida, contactos de emergencia, alergias, reglas...',
+    hours: 'Horas',
+    optional: 'Opcional',
+    earlyStart: 'Entrada temprana',
+    lateEnd: 'Salida tardía',
+    themeLabel: 'Título (opcional)',
+    themePlaceholder: 'p. ej. Día de parque',
+    planLabel: 'Plan',
+    planPlaceholder: 'Lo que va a pasar ese día...',
+    nothingPlanned: 'Nada planeado.',
+    from: 'Desde',
+    until: 'Hasta',
+    saving: 'Guardando…',
+    saved: 'Guardado',
+    shareCopied: 'Enlace copiado',
+    duplicated: 'Duplicado a próxima semana',
+    confirmNewWeek: '¿Empezar una semana nueva? El borrador actual será reemplazado.',
+    loadError: 'No se pudo cargar el archivo: ',
+    invalidFile: 'Archivo de horario no válido.',
+    sharePrompt: 'Copia este enlace:'
+  }
+};
+
+let lang = localStorage.getItem(LANG_KEY) === 'es' ? 'es' : 'en';
+function t(key) { return (T[lang] && T[lang][key]) || T.en[key] || key; }
+function locale() { return lang; }
 
 let state = freshState();
 let saveTimer = null;
 let lastSavedAt = null;
 
+function emptyDay() {
+  return { title: '', plan: '', start: '', end: '', earlyStart: '', lateEnd: '' };
+}
+
+function normalizeDay(d) {
+  d = d || {};
+  return {
+    title: d.title || '',
+    plan: d.plan || '',
+    start: d.start || '',
+    end: d.end || '',
+    earlyStart: d.earlyStart || '',
+    lateEnd: d.lateEnd || ''
+  };
+}
+
 function freshState(startIso) {
   return {
     weekStart: startIso || isoMonday(new Date()),
     weekNotes: '',
-    days: DAY_NAMES.map(() => ({ title: '', plan: '' }))
+    days: Array.from({ length: 7 }, () => emptyDay())
   };
 }
 
@@ -230,10 +370,22 @@ function addDays(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
-function fmtDayDate(iso, offset) {
+function dayDateObj(iso, offset) {
   const d = new Date(iso + 'T00:00:00');
   d.setDate(d.getDate() + offset);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return d;
+}
+
+function cap(s) {
+  return s ? s[0].toLocaleUpperCase(locale()) + s.slice(1) : s;
+}
+
+function fmtDayName(iso, offset) {
+  return cap(dayDateObj(iso, offset).toLocaleDateString(locale(), { weekday: 'long' }));
+}
+
+function fmtDayDate(iso, offset) {
+  return dayDateObj(iso, offset).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
 }
 
 function fmtWeekLabel(iso) {
@@ -241,7 +393,23 @@ function fmtWeekLabel(iso) {
   const end = new Date(start); end.setDate(end.getDate() + 6);
   const opts = { month: 'long', day: 'numeric' };
   const yearOpts = { ...opts, year: 'numeric' };
-  return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, yearOpts)}`;
+  return `${start.toLocaleDateString(locale(), opts)} – ${end.toLocaleDateString(locale(), yearOpts)}`;
+}
+
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const d = new Date('2000-01-01T' + hhmm + ':00');
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtMainHours(day) {
+  const s = fmtTime(day.start);
+  const e = fmtTime(day.end);
+  if (s && e) return `${s} – ${e}`;
+  if (s) return `${t('from')} ${s}`;
+  if (e) return `${t('until')} ${e}`;
+  return '';
 }
 
 function fmtSavedAt(iso) {
@@ -249,15 +417,29 @@ function fmtSavedAt(iso) {
   const d = new Date(iso);
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
   return sameDay
-    ? `Saved ${time}`
-    : `Saved ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
+    ? `${t('saved')} ${time}`
+    : `${t('saved')} ${d.toLocaleDateString(locale(), { month: 'short', day: 'numeric' })} ${time}`;
 }
 
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function applyStaticTranslations() {
+  document.title = t('title');
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  // toggleMode label depends on current mode
+  const isEdit = document.body.classList.contains('edit-mode');
+  document.getElementById('toggleMode').textContent = isEdit ? t('done') : t('edit');
 }
 
 function render() {
@@ -270,7 +452,7 @@ function render() {
     notesView.textContent = state.weekNotes;
     notesView.classList.remove('empty');
   } else {
-    notesView.textContent = 'No notes for this week.';
+    notesView.textContent = t('noNotes');
     notesView.classList.add('empty');
   }
 
@@ -280,23 +462,55 @@ function render() {
     const el = document.createElement('div');
     el.className = 'day';
     const planEmpty = !day.plan.trim();
+    const mainHours = fmtMainHours(day);
+    const earlyStr = fmtTime(day.earlyStart);
+    const lateStr = fmtTime(day.lateEnd);
+    const hasExtras = earlyStr || lateStr;
+
+    const extrasHtml = hasExtras ? `
+      <div class="day-extras">
+        ${earlyStr ? `<span><span class="extra-label">${escapeHtml(t('earlyStart'))}</span> <span class="extra-time">${earlyStr}</span></span>` : ''}
+        ${lateStr ? `<span><span class="extra-label">${escapeHtml(t('lateEnd'))}</span> <span class="extra-time">${lateStr}</span></span>` : ''}
+      </div>` : '';
+
     el.innerHTML = `
       <div class="day-header">
-        <span class="day-name">${DAY_NAMES[i]}</span>
-        <span class="day-date">${fmtDayDate(state.weekStart, i)}</span>
+        <span class="day-name">${escapeHtml(fmtDayName(state.weekStart, i))}</span>
+        <span class="day-date">${escapeHtml(fmtDayDate(state.weekStart, i))}</span>
       </div>
       <div class="readonly">
+        ${mainHours ? `<div class="day-time">${escapeHtml(mainHours)}</div>` : ''}
+        ${extrasHtml}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
-        <div class="day-plan ${planEmpty ? 'empty' : ''}">${planEmpty ? 'Nothing planned.' : escapeHtml(day.plan)}</div>
+        <div class="day-plan ${planEmpty ? 'empty' : ''}">${planEmpty ? escapeHtml(t('nothingPlanned')) : escapeHtml(day.plan)}</div>
       </div>
       <div class="editable">
         <div class="field">
-          <label>Theme (optional)</label>
-          <input type="text" data-day="${i}" data-field="title" value="${escapeHtml(day.title)}" placeholder="e.g. Park day">
+          <label>${escapeHtml(t('hours'))}</label>
+          <div class="time-row">
+            <input type="time" data-day="${i}" data-field="start" value="${escapeHtml(day.start)}">
+            <span class="dash">–</span>
+            <input type="time" data-day="${i}" data-field="end" value="${escapeHtml(day.end)}">
+          </div>
         </div>
         <div class="field">
-          <label>Plan</label>
-          <textarea data-day="${i}" data-field="plan" placeholder="What's happening that day...">${escapeHtml(day.plan)}</textarea>
+          <label>${escapeHtml(t('optional'))}</label>
+          <div class="time-row">
+            <label class="inline-label">${escapeHtml(t('earlyStart'))}
+              <input type="time" data-day="${i}" data-field="earlyStart" value="${escapeHtml(day.earlyStart)}">
+            </label>
+            <label class="inline-label">${escapeHtml(t('lateEnd'))}
+              <input type="time" data-day="${i}" data-field="lateEnd" value="${escapeHtml(day.lateEnd)}">
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label>${escapeHtml(t('themeLabel'))}</label>
+          <input type="text" data-day="${i}" data-field="title" value="${escapeHtml(day.title)}" placeholder="${escapeHtml(t('themePlaceholder'))}">
+        </div>
+        <div class="field">
+          <label>${escapeHtml(t('planLabel'))}</label>
+          <textarea data-day="${i}" data-field="plan" placeholder="${escapeHtml(t('planPlaceholder'))}">${escapeHtml(day.plan)}</textarea>
         </div>
       </div>
     `;
@@ -324,7 +538,7 @@ function syncFromInputs() {
 }
 
 function scheduleSave() {
-  renderSavedIndicator('Saving…');
+  renderSavedIndicator(t('saving'));
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
@@ -345,21 +559,16 @@ function loadDraft() {
     const data = JSON.parse(raw);
     if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
     lastSavedAt = localStorage.getItem(SAVED_AT_KEY);
-    return data;
+    return {
+      weekStart: data.weekStart,
+      weekNotes: data.weekNotes || '',
+      days: data.days.map(normalizeDay)
+    };
   } catch (e) {
     return null;
   }
 }
 
-function clearDraft() {
-  try {
-    localStorage.removeItem(DRAFT_KEY);
-    localStorage.removeItem(SAVED_AT_KEY);
-  } catch (e) {}
-  lastSavedAt = null;
-}
-
-// Share link: encode state as URL hash fragment, decode on load.
 function encodeStateToHash(s) {
   const json = JSON.stringify(s);
   const b64 = btoa(unescape(encodeURIComponent(json)))
@@ -376,17 +585,21 @@ function decodeStateFromHash(hash) {
     const json = decodeURIComponent(escape(atob(padded)));
     const data = JSON.parse(json);
     if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
-    return data;
+    return {
+      weekStart: data.weekStart,
+      weekNotes: data.weekNotes || '',
+      days: data.days.map(normalizeDay)
+    };
   } catch (e) {
     return null;
   }
 }
 
 function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 1800);
+  const tEl = document.getElementById('toast');
+  tEl.textContent = msg;
+  tEl.classList.add('show');
+  setTimeout(() => tEl.classList.remove('show'), 1800);
 }
 
 async function copyToClipboard(text) {
@@ -398,18 +611,31 @@ async function copyToClipboard(text) {
   }
 }
 
+function setLang(newLang) {
+  document.body.classList.remove('lang-' + lang);
+  lang = newLang;
+  document.body.classList.add('lang-' + lang);
+  localStorage.setItem(LANG_KEY, lang);
+  applyStaticTranslations();
+  render();
+}
+
 // --- Event wiring ---
+
+document.getElementById('langBtn').addEventListener('click', () => {
+  setLang(lang === 'en' ? 'es' : 'en');
+});
 
 document.getElementById('toggleMode').addEventListener('click', () => {
   const isEdit = document.body.classList.contains('edit-mode');
   if (isEdit) {
     syncFromInputs();
     document.body.classList.replace('edit-mode', 'view-mode');
-    document.getElementById('toggleMode').textContent = 'Edit';
+    document.getElementById('toggleMode').textContent = t('edit');
     render();
   } else {
     document.body.classList.replace('view-mode', 'edit-mode');
-    document.getElementById('toggleMode').textContent = 'Done';
+    document.getElementById('toggleMode').textContent = t('done');
   }
 });
 
@@ -426,9 +652,9 @@ document.getElementById('weekNotes').addEventListener('input', e => {
 });
 
 document.getElementById('days').addEventListener('input', e => {
-  const t = e.target;
-  if (t.dataset && t.dataset.day !== undefined) {
-    state.days[+t.dataset.day][t.dataset.field] = t.value;
+  const target = e.target;
+  if (target.dataset && target.dataset.day !== undefined) {
+    state.days[+target.dataset.day][target.dataset.field] = target.value;
     scheduleSave();
   }
 });
@@ -454,17 +680,17 @@ document.getElementById('importFile').addEventListener('change', e => {
     try {
       const data = JSON.parse(ev.target.result);
       if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) {
-        throw new Error('Not a valid schedule file.');
+        throw new Error(t('invalidFile'));
       }
       state = {
         weekStart: data.weekStart,
         weekNotes: data.weekNotes || '',
-        days: data.days.map(d => ({ title: d.title || '', plan: d.plan || '' }))
+        days: data.days.map(normalizeDay)
       };
       render();
       scheduleSave();
     } catch (err) {
-      alert('Could not load file: ' + err.message);
+      alert(t('loadError') + err.message);
     }
   };
   reader.readAsText(file);
@@ -473,8 +699,9 @@ document.getElementById('importFile').addEventListener('change', e => {
 
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
-  const hasContent = state.weekNotes.trim() || state.days.some(d => d.title.trim() || d.plan.trim());
-  if (hasContent && !confirm('Start a fresh week? The current draft will be replaced.')) return;
+  const hasContent = state.weekNotes.trim() || state.days.some(d =>
+    d.title.trim() || d.plan.trim() || d.start || d.end || d.earlyStart || d.lateEnd);
+  if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = freshState(addDays(state.weekStart, 7));
   render();
   scheduleSave();
@@ -485,11 +712,11 @@ document.getElementById('duplicateBtn').addEventListener('click', () => {
   state = {
     weekStart: addDays(state.weekStart, 7),
     weekNotes: state.weekNotes,
-    days: state.days.map(d => ({ title: d.title, plan: d.plan }))
+    days: state.days.map(d => ({ ...d }))
   };
   render();
   scheduleSave();
-  showToast('Duplicated to next week');
+  showToast(t('duplicated'));
 });
 
 document.getElementById('shareBtn').addEventListener('click', async () => {
@@ -497,21 +724,22 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
   const url = location.origin + location.pathname + encodeStateToHash(state);
   const ok = await copyToClipboard(url);
   if (ok) {
-    showToast('Share link copied');
+    showToast(t('shareCopied'));
   } else {
-    window.prompt('Copy this share link:', url);
+    window.prompt(t('sharePrompt'), url);
   }
 });
 
 // --- Init ---
 
 (function init() {
+  document.body.classList.add('lang-' + lang);
+  applyStaticTranslations();
   const fromHash = decodeStateFromHash(location.hash);
   if (fromHash) {
     state = fromHash;
     history.replaceState(null, '', location.pathname + location.search);
     render();
-    // Hash-loaded view becomes the local draft too, so editing persists.
     scheduleSave();
     return;
   }
