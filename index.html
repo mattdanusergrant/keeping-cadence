@@ -348,6 +348,7 @@ const T = {
     confirmClearDay: 'Clear this day?',
     dayCleared: 'Day cleared',
     confirmNewWeek: 'Start a fresh week? The current draft will be replaced.',
+    confirmDuplicate: 'Duplicate to next week? You can\'t navigate back to the current one.',
     loadError: 'Could not load file: ',
     invalidFile: 'Not a valid schedule file.',
     sharePrompt: 'Copy this share link:'
@@ -382,6 +383,7 @@ const T = {
     confirmClearDay: '¿Limpiar este día?',
     dayCleared: 'Día limpiado',
     confirmNewWeek: '¿Empezar una semana nueva? El borrador actual será reemplazado.',
+    confirmDuplicate: '¿Duplicar a la próxima semana? No podrás volver a la actual.',
     loadError: 'No se pudo cargar el archivo: ',
     invalidFile: 'Archivo de horario no válido.',
     sharePrompt: 'Copia este enlace:'
@@ -846,6 +848,7 @@ document.getElementById('newWeekBtn').addEventListener('click', () => {
 });
 
 document.getElementById('duplicateBtn').addEventListener('click', () => {
+  if (!confirm(t('confirmDuplicate'))) return;
   syncFromInputs();
   state = {
     weekStart: addDays(state.weekStart, 7),
