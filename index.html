@@ -117,7 +117,7 @@
   .notes-section .content { white-space: pre-wrap; }
   .notes-section .content.empty { color: var(--muted); font-style: italic; }
 
-  textarea, input[type=text], input[type=time] {
+  textarea, input[type=text], input[type=time], select.time-select {
     font: inherit; padding: 0.5rem;
     background: var(--bg); color: var(--ink);
     border: 1px solid var(--border); border-radius: 6px;
@@ -125,6 +125,11 @@
   input[type=text] { width: 100%; }
   textarea { width: 100%; min-height: 3.5rem; line-height: 1.45; resize: vertical; }
   input[type=time] { padding: 0.35rem 0.45rem; }
+  select.time-select {
+    padding: 0.35rem 0.45rem;
+    font-variant-numeric: tabular-nums;
+    min-width: 6.5rem;
+  }
 
   .days { display: grid; gap: 0.6rem; }
   .day {
@@ -396,6 +401,25 @@ function fmtWeekLabel(iso) {
   return `${start.toLocaleDateString(locale(), opts)} – ${end.toLocaleDateString(locale(), yearOpts)}`;
 }
 
+function timeOptionsHtml(selected) {
+  const times = [];
+  for (let h = 5; h <= 23; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      times.push(String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'));
+    }
+  }
+  if (selected && !times.includes(selected)) {
+    times.push(selected);
+    times.sort();
+  }
+  let html = '<option value="">--:--</option>';
+  for (const tm of times) {
+    const sel = tm === selected ? ' selected' : '';
+    html += `<option value="${tm}"${sel}>${escapeHtml(fmtTime(tm))}</option>`;
+  }
+  return html;
+}
+
 function fmtTime(hhmm) {
   if (!hhmm) return '';
   const d = new Date('2000-01-01T' + hhmm + ':00');
@@ -488,19 +512,19 @@ function render() {
         <div class="field">
           <label>${escapeHtml(t('hours'))}</label>
           <div class="time-row">
-            <input type="time" data-day="${i}" data-field="start" value="${escapeHtml(day.start)}">
+            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start)}</select>
             <span class="dash">–</span>
-            <input type="time" data-day="${i}" data-field="end" value="${escapeHtml(day.end)}">
+            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end)}</select>
           </div>
         </div>
         <div class="field">
           <label>${escapeHtml(t('optional'))}</label>
           <div class="time-row">
             <label class="inline-label">${escapeHtml(t('earlyStart'))}
-              <input type="time" data-day="${i}" data-field="earlyStart" value="${escapeHtml(day.earlyStart)}">
+              <select class="time-select" data-day="${i}" data-field="earlyStart">${timeOptionsHtml(day.earlyStart)}</select>
             </label>
             <label class="inline-label">${escapeHtml(t('lateEnd'))}
-              <input type="time" data-day="${i}" data-field="lateEnd" value="${escapeHtml(day.lateEnd)}">
+              <select class="time-select" data-day="${i}" data-field="lateEnd">${timeOptionsHtml(day.lateEnd)}</select>
             </label>
           </div>
         </div>
