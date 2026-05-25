@@ -127,6 +127,20 @@
 
   .days { display: grid; gap: 0.6rem; }
 
+  .day-track-wrap { margin: 0.4rem 0 0.5rem; }
+  .day-track-axis {
+    position: relative; height: 0.85rem;
+    margin-bottom: 0.15rem;
+  }
+  .day-track-axis .lbl {
+    position: absolute; top: 0;
+    font-size: 0.62rem; color: var(--muted);
+    transform: translateX(-50%);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .day-track-axis .lbl.lbl-start { transform: translateX(0); }
+  .day-track-axis .lbl.lbl-end   { transform: translateX(-100%); }
   .day-track {
     position: relative; width: 100%;
     height: 14px;
@@ -134,7 +148,6 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     overflow: hidden;
-    margin: 0.35rem 0 0.45rem;
   }
   .day-track .gridline {
     position: absolute; top: 0; bottom: 0;
@@ -324,6 +337,8 @@
     }
 
     .day-track { height: 12px; }
+    .day-track-axis { height: 0.78rem; }
+    .day-track-axis .lbl { font-size: 0.58rem; }
     .day { padding: 0.7rem 0.85rem; }
     .days { gap: 0.5rem; }
     .day-name { font-size: 1rem; }
@@ -731,17 +746,34 @@ function applyStaticTranslations() {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function fmtTickHour(mins) {
+  const h = Math.floor(mins / 60);
+  if (lang === 'es') return String(h);
+  if (h === 0) return '12a';
+  if (h < 12) return h + 'a';
+  if (h === 12) return '12p';
+  return (h - 12) + 'p';
+}
+
 function dayTimelineHtml(day) {
   const axisMin = hhmmToMinutes(settings.startMin);
   const axisMax = hhmmToMinutes(settings.endMax);
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '';
   const range = axisMax - axisMin;
 
-  // Gridlines every 3 hours, aligned to whole hours.
+  // Tick positions every 2 hours, aligned to whole hours within [axisMin, axisMax].
+  const ticks = [];
+  const startHour = Math.ceil(axisMin / 60);
+  for (let h = startHour; h * 60 <= axisMax; h += 2) ticks.push(h * 60);
+
+  let axisHtml = '';
   let bars = '';
-  const firstTick = Math.ceil(axisMin / 60) * 60;
-  for (let m = firstTick; m <= axisMax; m += 180) {
+  for (const m of ticks) {
     const pct = ((m - axisMin) / range) * 100;
+    let extraClass = '';
+    if (pct <= 1) extraClass = ' lbl-start';
+    else if (pct >= 99) extraClass = ' lbl-end';
+    axisHtml += `<span class="lbl${extraClass}" style="left:${pct.toFixed(2)}%">${escapeHtml(fmtTickHour(m))}</span>`;
     if (pct > 0 && pct < 100) {
       bars += `<span class="gridline" style="left:${pct.toFixed(2)}%"></span>`;
     }
@@ -774,7 +806,10 @@ function dayTimelineHtml(day) {
   }
 
   const invalid = isInvalidDayTimes(day);
-  return `<div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>`;
+  return `<div class="day-track-wrap">
+    <div class="day-track-axis">${axisHtml}</div>
+    <div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>
+  </div>`;
 }
 
 function render() {
