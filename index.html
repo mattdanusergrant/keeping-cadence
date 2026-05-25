@@ -38,13 +38,18 @@
   }
   .container { max-width: 720px; margin: 0 auto; }
 
-  header {
+  header { margin-bottom: 1rem; }
+  .header-row {
     display: flex; justify-content: space-between;
-    align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem;
+    align-items: center; gap: 0.75rem;
   }
-  header .header-text { flex: 1; min-width: 0; }
-  h1 { font-size: 1.4rem; margin: 0 0 0.15rem; font-weight: 600; }
-  .week-label { color: var(--muted); font-size: 0.95rem; }
+  h1 { font-size: 1.15rem; margin: 0; font-weight: 600; flex: 1; min-width: 0; }
+  .week-label {
+    color: var(--muted); font-size: 0.9rem;
+    margin-top: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
   .header-actions {
     display: flex; gap: 0.4rem; flex-shrink: 0;
     align-items: center; flex-wrap: wrap; justify-content: flex-end;
@@ -104,19 +109,6 @@
   }
   .saved-indicator.unsaved { color: var(--accent); }
 
-  .notes-section {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1rem;
-    box-shadow: var(--shadow);
-  }
-  .notes-section h2 {
-    font-size: 0.78rem; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--muted);
-    margin: 0 0 0.4rem; font-weight: 600;
-  }
-  .notes-section .content { white-space: pre-wrap; }
-  .notes-section .content.empty { color: var(--muted); font-style: italic; }
-
   textarea, input[type=text], input[type=time], select.time-select {
     font: inherit; padding: 0.5rem;
     background: var(--bg); color: var(--ink);
@@ -144,26 +136,23 @@
   .day-name { font-weight: 600; font-size: 1.05rem; }
   .day-date { color: var(--muted); font-size: 0.85rem; }
   .day-time {
-    color: var(--accent); font-weight: 600; font-size: 1.05rem;
-    margin-bottom: 0.15rem;
+    display: flex; align-items: baseline;
+    gap: 0.4rem; flex-wrap: nowrap;
+    color: var(--accent); font-weight: 600;
+    margin-bottom: 0.2rem;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
-  .day-extras {
-    display: flex; gap: 0.85rem; flex-wrap: wrap;
-    color: var(--muted); font-size: 0.85rem;
-    margin-bottom: 0.35rem;
+  .day-time .t-main { font-size: 1.1rem; }
+  .day-time .t-side {
+    font-size: 0.78rem; color: var(--muted); font-weight: 500;
   }
-  .day-extras .extra-label { color: var(--muted); }
-  .day-extras .extra-time {
-    color: var(--ink); font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
+  .day-time .t-dash { font-size: 1.05rem; }
   .day-title {
     color: var(--accent); font-weight: 500;
     margin-bottom: 0.2rem; font-size: 0.95rem;
   }
   .day-plan { white-space: pre-wrap; }
-  .day-plan.empty { color: var(--muted); font-style: italic; }
   .day .field { margin-bottom: 0.55rem; }
   .day .field:last-child { margin-bottom: 0; }
   .day-actions {
@@ -208,10 +197,11 @@
 
   @media (max-width: 520px) {
     body { padding: 0.6rem; font-size: 15px; }
-    h1 { font-size: 1.2rem; }
+    h1 { font-size: 1.05rem; }
     .week-label { font-size: 0.85rem; }
 
-    header { gap: 0.4rem; margin-bottom: 0.75rem; }
+    header { margin-bottom: 0.75rem; }
+    .header-row { gap: 0.5rem; }
     .header-actions { gap: 0.3rem; }
     .header-actions button {
       padding: 0.35rem 0.65rem; font-size: 0.88rem;
@@ -235,13 +225,14 @@
       font-size: 0.75rem;
     }
 
-    .notes-section, .day { padding: 0.7rem 0.85rem; }
-    .notes-section { margin-bottom: 0.75rem; }
+    .day { padding: 0.7rem 0.85rem; }
     .days { gap: 0.5rem; }
     .day-name { font-size: 1rem; }
     .day-date { font-size: 0.8rem; }
-    .day-time { font-size: 1rem; }
-    .day-extras { font-size: 0.8rem; gap: 0.4rem 0.85rem; }
+    .day-time { gap: 0.3rem; }
+    .day-time .t-main { font-size: 1rem; }
+    .day-time .t-side { font-size: 0.72rem; }
+    .day-time .t-dash { font-size: 0.95rem; }
     .day-title { font-size: 0.9rem; }
 
     .day .field { margin-bottom: 0.5rem; }
@@ -270,7 +261,7 @@
   @media print {
     .toolbar, .header-actions { display: none; }
     body { background: white; color: black; padding: 0; }
-    .day, .notes-section {
+    .day {
       box-shadow: none; border: 1px solid #ddd;
       page-break-inside: avoid;
     }
@@ -280,17 +271,17 @@
 <body class="view-mode lang-en">
 <div class="container">
   <header>
-    <div class="header-text">
+    <div class="header-row">
       <h1 data-i18n="title">Nanny Schedule</h1>
-      <div class="week-label" id="weekLabel"></div>
+      <div class="header-actions">
+        <button id="langBtn" class="lang-toggle" type="button" aria-label="Toggle language">
+          <span data-lang="en">EN</span><span data-lang="es">ES</span>
+        </button>
+        <button id="shareBtn" data-i18n="share">Share</button>
+        <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
+      </div>
     </div>
-    <div class="header-actions">
-      <button id="langBtn" class="lang-toggle" type="button" aria-label="Toggle language">
-        <span data-lang="en">EN</span><span data-lang="es">ES</span>
-      </button>
-      <button id="shareBtn" data-i18n="share">Share</button>
-      <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
-    </div>
+    <div class="week-label" id="weekLabel"></div>
   </header>
 
   <div class="toolbar editable">
@@ -307,14 +298,6 @@
     </div>
     <span class="saved-indicator" id="savedIndicator"></span>
   </div>
-
-  <section class="notes-section">
-    <h2 data-i18n="weekNotes">Week notes</h2>
-    <div class="readonly content" id="weekNotesView"></div>
-    <textarea class="editable" id="weekNotes"
-      data-i18n-placeholder="notesPlaceholder"
-      placeholder="Hours, drop-off / pick-up times, emergency contacts, allergies, standing rules..."></textarea>
-  </section>
 
   <div class="days" id="days"></div>
 </div>
@@ -337,9 +320,6 @@ const T = {
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
     weekOf: 'Week of',
-    weekNotes: 'Week notes',
-    noNotes: 'No notes for this week.',
-    notesPlaceholder: 'Hours, drop-off / pick-up times, emergency contacts, allergies, standing rules...',
     hours: 'Hours',
     optional: 'Optional',
     earlyStart: 'Early start',
@@ -348,9 +328,6 @@ const T = {
     themePlaceholder: 'e.g. Park day',
     planLabel: 'Plan',
     planPlaceholder: "What's happening that day...",
-    nothingPlanned: 'Nothing planned.',
-    from: 'From',
-    until: 'Until',
     saving: 'Saving…',
     saved: 'Saved',
     shareCopied: 'Share link copied',
@@ -375,9 +352,6 @@ const T = {
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
     weekOf: 'Semana del',
-    weekNotes: 'Notas de la semana',
-    noNotes: 'Sin notas para esta semana.',
-    notesPlaceholder: 'Horario, entrega y recogida, contactos de emergencia, alergias, reglas...',
     hours: 'Horas',
     optional: 'Opcional',
     earlyStart: 'Entrada temprana',
@@ -386,9 +360,6 @@ const T = {
     themePlaceholder: 'p. ej. Día de parque',
     planLabel: 'Plan',
     planPlaceholder: 'Lo que va a pasar ese día...',
-    nothingPlanned: 'Nada planeado.',
-    from: 'Desde',
-    until: 'Hasta',
     saving: 'Guardando…',
     saved: 'Guardado',
     shareCopied: 'Enlace copiado',
@@ -432,7 +403,6 @@ function normalizeDay(d) {
 function freshState(startIso) {
   return {
     weekStart: startIso || isoMonday(new Date()),
-    weekNotes: '',
     days: Array.from({ length: 7 }, () => emptyDay())
   };
 }
@@ -502,13 +472,19 @@ function fmtTime(hhmm) {
   return d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
 }
 
-function fmtMainHours(day) {
-  const s = fmtTime(day.start);
-  const e = fmtTime(day.end);
-  if (s && e) return `${s} – ${e}`;
-  if (s) return `${t('from')} ${s}`;
-  if (e) return `${t('until')} ${e}`;
-  return '';
+function dayTimeHtml(day) {
+  const start = fmtTime(day.start);
+  const end = fmtTime(day.end);
+  const early = fmtTime(day.earlyStart);
+  const late = fmtTime(day.lateEnd);
+  if (!start && !end && !early && !late) return '';
+  let inner = '';
+  if (early) inner += `<span class="t-side">${escapeHtml(early)}</span>`;
+  if (start) inner += `<span class="t-main">${escapeHtml(start)}</span>`;
+  if (start && end) inner += `<span class="t-dash">–</span>`;
+  if (end) inner += `<span class="t-main">${escapeHtml(end)}</span>`;
+  if (late) inner += `<span class="t-side">${escapeHtml(late)}</span>`;
+  return `<div class="day-time">${inner}</div>`;
 }
 
 function fmtSavedAt(iso) {
@@ -544,33 +520,12 @@ function applyStaticTranslations() {
 function render() {
   document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
   document.getElementById('weekStart').value = state.weekStart;
-  document.getElementById('weekNotes').value = state.weekNotes;
-
-  const notesView = document.getElementById('weekNotesView');
-  if (state.weekNotes.trim()) {
-    notesView.textContent = state.weekNotes;
-    notesView.classList.remove('empty');
-  } else {
-    notesView.textContent = t('noNotes');
-    notesView.classList.add('empty');
-  }
 
   const days = document.getElementById('days');
   days.innerHTML = '';
   state.days.forEach((day, i) => {
     const el = document.createElement('div');
     el.className = 'day';
-    const planEmpty = !day.plan.trim();
-    const mainHours = fmtMainHours(day);
-    const earlyStr = fmtTime(day.earlyStart);
-    const lateStr = fmtTime(day.lateEnd);
-    const hasExtras = earlyStr || lateStr;
-
-    const extrasHtml = hasExtras ? `
-      <div class="day-extras">
-        ${earlyStr ? `<span><span class="extra-label">${escapeHtml(t('earlyStart'))}</span> <span class="extra-time">${earlyStr}</span></span>` : ''}
-        ${lateStr ? `<span><span class="extra-label">${escapeHtml(t('lateEnd'))}</span> <span class="extra-time">${lateStr}</span></span>` : ''}
-      </div>` : '';
 
     el.innerHTML = `
       <div class="day-header">
@@ -578,10 +533,9 @@ function render() {
         <span class="day-date">${escapeHtml(fmtDayDate(state.weekStart, i))}</span>
       </div>
       <div class="readonly">
-        ${mainHours ? `<div class="day-time">${escapeHtml(mainHours)}</div>` : ''}
-        ${extrasHtml}
+        ${dayTimeHtml(day)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
-        <div class="day-plan ${planEmpty ? 'empty' : ''}">${planEmpty ? escapeHtml(t('nothingPlanned')) : escapeHtml(day.plan)}</div>
+        ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
       <div class="editable">
         <div class="field">
@@ -634,7 +588,6 @@ function renderSavedIndicator(override) {
 }
 
 function syncFromInputs() {
-  state.weekNotes = document.getElementById('weekNotes').value;
   document.querySelectorAll('[data-day]').forEach(el => {
     state.days[+el.dataset.day][el.dataset.field] = el.value;
   });
@@ -664,7 +617,6 @@ function loadDraft() {
     lastSavedAt = localStorage.getItem(SAVED_AT_KEY);
     return {
       weekStart: data.weekStart,
-      weekNotes: data.weekNotes || '',
       days: data.days.map(normalizeDay)
     };
   } catch (e) {
@@ -690,7 +642,6 @@ function decodeStateFromHash(hash) {
     if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
     return {
       weekStart: data.weekStart,
-      weekNotes: data.weekNotes || '',
       days: data.days.map(normalizeDay)
     };
   } catch (e) {
@@ -746,11 +697,6 @@ document.getElementById('weekStart').addEventListener('change', e => {
   syncFromInputs();
   state.weekStart = e.target.value;
   render();
-  scheduleSave();
-});
-
-document.getElementById('weekNotes').addEventListener('input', e => {
-  state.weekNotes = e.target.value;
   scheduleSave();
 });
 
@@ -815,7 +761,6 @@ document.getElementById('importFile').addEventListener('change', e => {
       }
       state = {
         weekStart: data.weekStart,
-        weekNotes: data.weekNotes || '',
         days: data.days.map(normalizeDay)
       };
       render();
@@ -830,7 +775,7 @@ document.getElementById('importFile').addEventListener('change', e => {
 
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
-  const hasContent = state.weekNotes.trim() || state.days.some(d =>
+  const hasContent = state.days.some(d =>
     d.title.trim() || d.plan.trim() || d.start || d.end || d.earlyStart || d.lateEnd);
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = freshState(addDays(state.weekStart, 7));
@@ -842,7 +787,6 @@ document.getElementById('duplicateBtn').addEventListener('click', () => {
   syncFromInputs();
   state = {
     weekStart: addDays(state.weekStart, 7),
-    weekNotes: state.weekNotes,
     days: state.days.map(d => ({ ...d }))
   };
   render();
