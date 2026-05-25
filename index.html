@@ -166,6 +166,17 @@
   .day-plan.empty { color: var(--muted); font-style: italic; }
   .day .field { margin-bottom: 0.55rem; }
   .day .field:last-child { margin-bottom: 0; }
+  .day-actions {
+    display: flex; justify-content: flex-end;
+    margin-top: 0.6rem;
+  }
+  .copy-next-btn {
+    font: inherit; font-size: 0.85rem;
+    padding: 0.35rem 0.7rem;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 6px; cursor: pointer;
+  }
+  .copy-next-btn:hover { border-color: var(--accent); color: var(--ink); }
   .day .field > label {
     display: block; font-size: 0.75rem;
     text-transform: uppercase; letter-spacing: 0.05em;
@@ -290,6 +301,8 @@ const T = {
     saved: 'Saved',
     shareCopied: 'Share link copied',
     duplicated: 'Duplicated to next week',
+    copyToNext: 'Copy to next day →',
+    copiedToNext: 'Copied to next day',
     confirmNewWeek: 'Start a fresh week? The current draft will be replaced.',
     loadError: 'Could not load file: ',
     invalidFile: 'Not a valid schedule file.',
@@ -323,6 +336,8 @@ const T = {
     saved: 'Guardado',
     shareCopied: 'Enlace copiado',
     duplicated: 'Duplicado a próxima semana',
+    copyToNext: 'Copiar al día siguiente →',
+    copiedToNext: 'Copiado al día siguiente',
     confirmNewWeek: '¿Empezar una semana nueva? El borrador actual será reemplazado.',
     loadError: 'No se pudo cargar el archivo: ',
     invalidFile: 'Archivo de horario no válido.',
@@ -536,6 +551,9 @@ function render() {
           <label>${escapeHtml(t('planLabel'))}</label>
           <textarea data-day="${i}" data-field="plan" placeholder="${escapeHtml(t('planPlaceholder'))}">${escapeHtml(day.plan)}</textarea>
         </div>
+        ${i < 6 ? `<div class="day-actions">
+          <button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>
+        </div>` : ''}
       </div>
     `;
     days.appendChild(el);
@@ -681,6 +699,18 @@ document.getElementById('days').addEventListener('input', e => {
     state.days[+target.dataset.day][target.dataset.field] = target.value;
     scheduleSave();
   }
+});
+
+document.getElementById('days').addEventListener('click', e => {
+  const btn = e.target.closest('.copy-next-btn');
+  if (!btn) return;
+  const from = +btn.dataset.copyFrom;
+  if (from < 0 || from > 5) return;
+  syncFromInputs();
+  state.days[from + 1] = { ...state.days[from] };
+  render();
+  scheduleSave();
+  showToast(t('copiedToNext'));
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
