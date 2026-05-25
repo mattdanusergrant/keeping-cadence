@@ -125,45 +125,16 @@
 
   .days { display: grid; gap: 0.6rem; }
 
-  .timeline {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0.7rem 0.85rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 0.6rem;
-    --t-label-w: 2.5rem;
-    --t-bar-h: 14px;
-    --t-row-gap: 0.25rem;
-  }
-  .timeline-header, .timeline-row {
-    display: flex; align-items: center; gap: 0.4rem;
-  }
-  .timeline-header { margin-bottom: 0.35rem; }
-  .timeline-row { margin-bottom: var(--t-row-gap); }
-  .timeline-row:last-child { margin-bottom: 0; }
-  .t-label {
-    width: var(--t-label-w); flex-shrink: 0;
-    font-size: 0.72rem; font-weight: 600;
-    color: var(--muted); text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .timeline-axis {
-    flex: 1; position: relative; height: 0.9rem;
-  }
-  .timeline-axis .tick {
-    position: absolute; top: 0;
-    font-size: 0.68rem; color: var(--muted);
-    transform: translateX(-50%);
-    font-variant-numeric: tabular-nums;
-  }
-  .t-track {
-    flex: 1; position: relative;
-    height: var(--t-bar-h);
+  .day-track {
+    position: relative; width: 100%;
+    height: 14px;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 4px;
     overflow: hidden;
+    margin: 0.35rem 0 0.45rem;
   }
-  .t-track .gridline {
+  .day-track .gridline {
     position: absolute; top: 0; bottom: 0;
     width: 1px; background: var(--border);
   }
@@ -334,9 +305,7 @@
       font-size: 0.75rem;
     }
 
-    .timeline { padding: 0.55rem 0.7rem; --t-label-w: 2.1rem; --t-bar-h: 12px; }
-    .timeline-axis .tick { font-size: 0.62rem; }
-    .t-label { font-size: 0.68rem; }
+    .day-track { height: 12px; }
     .day { padding: 0.7rem 0.85rem; }
     .days { gap: 0.5rem; }
     .day-name { font-size: 1rem; }
@@ -413,8 +382,6 @@
     </div>
     <span class="saved-indicator" id="savedIndicator"></span>
   </div>
-
-  <section class="timeline readonly" id="timeline"></section>
 
   <div class="days" id="days"></div>
 </div>
@@ -743,95 +710,54 @@ function applyStaticTranslations() {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-function fmtTickHour(mins) {
-  const h = Math.floor(mins / 60);
-  if (lang === 'es') return String(h);
-  if (h === 0) return '12a';
-  if (h < 12) return h + 'a';
-  if (h === 12) return '12p';
-  return (h - 12) + 'p';
-}
-
-function renderTimeline() {
-  const el = document.getElementById('timeline');
+function dayTimelineHtml(day) {
   const axisMin = hhmmToMinutes(settings.startMin);
   const axisMax = hhmmToMinutes(settings.endMax);
-  if (axisMin === null || axisMax === null || axisMax <= axisMin) {
-    el.innerHTML = '';
-    return;
-  }
+  if (axisMin === null || axisMax === null || axisMax <= axisMin) return '';
   const range = axisMax - axisMin;
 
-  // Tick marks roughly every 3 hours, aligned to whole hours.
-  const ticks = [];
+  // Gridlines every 3 hours, aligned to whole hours.
+  let bars = '';
   const firstTick = Math.ceil(axisMin / 60) * 60;
-  for (let m = firstTick; m <= axisMax; m += 180) ticks.push(m);
-  if (ticks[ticks.length - 1] !== axisMax && (axisMax - ticks[ticks.length - 1]) > 60) {
-    ticks.push(axisMax);
+  for (let m = firstTick; m <= axisMax; m += 180) {
+    const pct = ((m - axisMin) / range) * 100;
+    if (pct > 0 && pct < 100) {
+      bars += `<span class="gridline" style="left:${pct.toFixed(2)}%"></span>`;
+    }
   }
 
-  const tickHtml = ticks.map(m => {
-    const pct = ((m - axisMin) / range) * 100;
-    return `<span class="tick" style="left:${pct.toFixed(2)}%">${escapeHtml(fmtTickHour(m))}</span>`;
-  }).join('');
-
-  const gridHtml = ticks.map(m => {
-    const pct = ((m - axisMin) / range) * 100;
-    if (pct <= 0 || pct >= 100) return '';
-    return `<span class="gridline" style="left:${pct.toFixed(2)}%"></span>`;
-  }).join('');
-
-  const rowsHtml = state.days.map((day, i) => {
-    const dayName = fmtDayName(state.weekStart, i);
-    const shortName = cap(dayDateObj(state.weekStart, i)
-      .toLocaleDateString(locale(), { weekday: 'short' })).replace('.', '');
-    const sMin = hhmmToMinutes(day.start);
-    const eMin = hhmmToMinutes(day.end);
-    let bars = gridHtml;
-    if (sMin !== null && eMin !== null && eMin > sMin) {
-      const sClamped = clamp(sMin, axisMin, axisMax);
-      const eClamped = clamp(eMin, axisMin, axisMax);
-      const left = ((sClamped - axisMin) / range) * 100;
-      const width = ((eClamped - sClamped) / range) * 100;
-      if (day.startBuffer) {
-        const bufStart = clamp(sMin - day.startBuffer, axisMin, axisMax);
-        const bufLeft = ((bufStart - axisMin) / range) * 100;
-        const bufWidth = ((sClamped - bufStart) / range) * 100;
-        if (bufWidth > 0) {
-          bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
-        }
+  const sMin = hhmmToMinutes(day.start);
+  const eMin = hhmmToMinutes(day.end);
+  if (sMin !== null && eMin !== null && eMin > sMin) {
+    const sClamped = clamp(sMin, axisMin, axisMax);
+    const eClamped = clamp(eMin, axisMin, axisMax);
+    const left = ((sClamped - axisMin) / range) * 100;
+    const width = ((eClamped - sClamped) / range) * 100;
+    if (day.startBuffer) {
+      const bufStart = clamp(sMin - day.startBuffer, axisMin, axisMax);
+      const bufLeft = ((bufStart - axisMin) / range) * 100;
+      const bufWidth = ((sClamped - bufStart) / range) * 100;
+      if (bufWidth > 0) {
+        bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
       }
-      if (day.endBuffer) {
-        const bufEnd = clamp(eMin + day.endBuffer, axisMin, axisMax);
-        const bufLeft = ((eClamped - axisMin) / range) * 100;
-        const bufWidth = ((bufEnd - eClamped) / range) * 100;
-        if (bufWidth > 0) {
-          bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
-        }
-      }
-      bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(dayName)}"></div>`;
     }
-    return `
-      <div class="timeline-row">
-        <span class="t-label">${escapeHtml(shortName)}</span>
-        <div class="t-track">${bars}</div>
-      </div>
-    `;
-  }).join('');
+    if (day.endBuffer) {
+      const bufEnd = clamp(eMin + day.endBuffer, axisMin, axisMax);
+      const bufLeft = ((eClamped - axisMin) / range) * 100;
+      const bufWidth = ((bufEnd - eClamped) / range) * 100;
+      if (bufWidth > 0) {
+        bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
+      }
+    }
+    bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></div>`;
+  }
 
-  el.innerHTML = `
-    <div class="timeline-header">
-      <span class="t-label"></span>
-      <div class="timeline-axis">${tickHtml}</div>
-    </div>
-    ${rowsHtml}
-  `;
+  return `<div class="day-track">${bars}</div>`;
 }
 
 function render() {
   document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
   document.getElementById('weekStart').value = state.weekStart;
-  renderTimeline();
 
   const days = document.getElementById('days');
   days.innerHTML = '';
@@ -846,6 +772,7 @@ function render() {
       </div>
       <div class="readonly">
         ${dayTimeHtml(day)}
+        ${dayTimelineHtml(day)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
