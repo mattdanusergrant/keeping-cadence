@@ -207,10 +207,64 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   @media (max-width: 520px) {
-    body { padding: 0.75rem; font-size: 15px; }
-    h1 { font-size: 1.25rem; }
-    .toolbar .week-picker { width: 100%; }
-    .saved-indicator { margin-left: 0; width: 100%; text-align: right; }
+    body { padding: 0.6rem; font-size: 15px; }
+    h1 { font-size: 1.2rem; }
+    .week-label { font-size: 0.85rem; }
+
+    header { gap: 0.4rem; margin-bottom: 0.75rem; }
+    .header-actions { gap: 0.3rem; }
+    .header-actions button {
+      padding: 0.35rem 0.65rem; font-size: 0.88rem;
+    }
+    .lang-toggle { font-size: 0.72rem; }
+    .lang-toggle span { padding: 0.12rem 0.35rem; }
+
+    .toolbar {
+      padding: 0.5rem; gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+    .toolbar button, .toolbar .file-label {
+      padding: 0.35rem 0.6rem; font-size: 0.88rem;
+    }
+    .toolbar .week-picker {
+      width: 100%; justify-content: space-between;
+      order: -1;
+    }
+    .saved-indicator {
+      margin-left: 0; width: 100%; text-align: right;
+      font-size: 0.75rem;
+    }
+
+    .notes-section, .day { padding: 0.7rem 0.85rem; }
+    .notes-section { margin-bottom: 0.75rem; }
+    .days { gap: 0.5rem; }
+    .day-name { font-size: 1rem; }
+    .day-date { font-size: 0.8rem; }
+    .day-time { font-size: 1rem; }
+    .day-extras { font-size: 0.8rem; gap: 0.4rem 0.85rem; }
+    .day-title { font-size: 0.9rem; }
+
+    .day .field { margin-bottom: 0.5rem; }
+    .day .field > label { font-size: 0.7rem; margin-bottom: 0.2rem; }
+    textarea, input[type=text] { padding: 0.45rem; }
+    select.time-select {
+      min-width: 0; flex: 1 1 0;
+      padding: 0.35rem 0.3rem; font-size: 0.9rem;
+    }
+    .time-row { gap: 0.35rem; }
+    .time-row .inline-label {
+      flex: 1 1 100%;
+      font-size: 0.8rem; gap: 0.4rem;
+      justify-content: space-between;
+    }
+    .time-row .inline-label select.time-select {
+      flex: 0 0 60%; max-width: 60%;
+    }
+
+    .day-actions { gap: 0.3rem; margin-top: 0.5rem; }
+    .day-actions button {
+      padding: 0.3rem 0.55rem; font-size: 0.78rem;
+    }
   }
 
   @media print {
