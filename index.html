@@ -137,17 +137,23 @@
   .day-date { color: var(--muted); font-size: 0.85rem; }
   .day-time {
     display: flex; align-items: baseline;
-    gap: 0.4rem; flex-wrap: nowrap;
+    gap: 0.5rem; flex-wrap: nowrap;
     color: var(--accent); font-weight: 600;
     margin-bottom: 0.2rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .day-time .t-group {
+    display: inline-flex; align-items: baseline; gap: 0.2rem;
+  }
   .day-time .t-main { font-size: 1.1rem; }
   .day-time .t-side {
     font-size: 0.78rem; color: var(--muted); font-weight: 500;
   }
-  .day-time .t-dash { font-size: 1.05rem; }
+  .day-time .t-inner {
+    font-size: 0.78rem; color: var(--muted); font-weight: 500;
+  }
+  .day-time .t-sep { font-size: 1.05rem; }
   .day-title {
     color: var(--accent); font-weight: 500;
     margin-bottom: 0.2rem; font-size: 0.95rem;
@@ -229,10 +235,12 @@
     .days { gap: 0.5rem; }
     .day-name { font-size: 1rem; }
     .day-date { font-size: 0.8rem; }
-    .day-time { gap: 0.3rem; }
+    .day-time { gap: 0.35rem; }
+    .day-time .t-group { gap: 0.15rem; }
     .day-time .t-main { font-size: 1rem; }
     .day-time .t-side { font-size: 0.72rem; }
-    .day-time .t-dash { font-size: 0.95rem; }
+    .day-time .t-inner { font-size: 0.72rem; }
+    .day-time .t-sep { font-size: 0.95rem; }
     .day-title { font-size: 0.9rem; }
 
     .day .field { margin-bottom: 0.5rem; }
@@ -321,9 +329,11 @@ const T = {
     newWeek: 'New (blank) week',
     weekOf: 'Week of',
     hours: 'Hours',
-    optional: 'Optional',
-    earlyStart: 'Early start',
-    lateEnd: 'Late end',
+    bufferLabel: 'Buffer',
+    bufferStart: 'Start',
+    bufferEnd: 'End',
+    bufferNone: 'None',
+    bufferMin: 'min',
     themeLabel: 'Theme (optional)',
     themePlaceholder: 'e.g. Park day',
     planLabel: 'Plan',
@@ -353,9 +363,11 @@ const T = {
     newWeek: 'Semana en blanco',
     weekOf: 'Semana del',
     hours: 'Horas',
-    optional: 'Opcional',
-    earlyStart: 'Entrada temprana',
-    lateEnd: 'Salida tardía',
+    bufferLabel: 'Margen',
+    bufferStart: 'Inicio',
+    bufferEnd: 'Fin',
+    bufferNone: 'Ninguno',
+    bufferMin: 'min',
     themeLabel: 'Título (opcional)',
     themePlaceholder: 'p. ej. Día de parque',
     planLabel: 'Plan',
@@ -385,19 +397,57 @@ let saveTimer = null;
 let lastSavedAt = null;
 
 function emptyDay() {
-  return { title: '', plan: '', start: '', end: '', earlyStart: '', lateEnd: '' };
+  return { title: '', plan: '', start: '', end: '', startBuffer: 0, endBuffer: 0 };
+}
+
+function hhmmToMinutes(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function minutesToHhmm(mins) {
+  const wrapped = ((mins % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
 function normalizeDay(d) {
   d = d || {};
+  let startBuffer = Number(d.startBuffer) || 0;
+  let endBuffer = Number(d.endBuffer) || 0;
+  // Migrate legacy earlyStart/lateEnd into buffer minutes
+  if (!startBuffer && d.earlyStart && d.start) {
+    const s = hhmmToMinutes(d.start);
+    const es = hhmmToMinutes(d.earlyStart);
+    if (s !== null && es !== null && s > es) startBuffer = s - es;
+  }
+  if (!endBuffer && d.lateEnd && d.end) {
+    const e = hhmmToMinutes(d.end);
+    const le = hhmmToMinutes(d.lateEnd);
+    if (e !== null && le !== null && le > e) endBuffer = le - e;
+  }
   return {
     title: d.title || '',
     plan: d.plan || '',
     start: d.start || '',
     end: d.end || '',
-    earlyStart: d.earlyStart || '',
-    lateEnd: d.lateEnd || ''
+    startBuffer,
+    endBuffer
   };
+}
+
+function bufferOptionsHtml(selected) {
+  const opts = [0, 15, 30, 45, 60];
+  let html = '';
+  for (const m of opts) {
+    const sel = m === selected ? ' selected' : '';
+    const label = m === 0 ? t('bufferNone') : `${m} ${t('bufferMin')}`;
+    html += `<option value="${m}"${sel}>${escapeHtml(label)}</option>`;
+  }
+  return html;
 }
 
 function freshState(startIso) {
@@ -475,16 +525,24 @@ function fmtTime(hhmm) {
 function dayTimeHtml(day) {
   const start = fmtTime(day.start);
   const end = fmtTime(day.end);
-  const early = fmtTime(day.earlyStart);
-  const late = fmtTime(day.lateEnd);
-  if (!start && !end && !early && !late) return '';
-  let inner = '';
-  if (early) inner += `<span class="t-side">${escapeHtml(early)}</span>`;
-  if (start) inner += `<span class="t-main">${escapeHtml(start)}</span>`;
-  if (start && end) inner += `<span class="t-dash">–</span>`;
-  if (end) inner += `<span class="t-main">${escapeHtml(end)}</span>`;
-  if (late) inner += `<span class="t-side">${escapeHtml(late)}</span>`;
-  return `<div class="day-time">${inner}</div>`;
+  const sBuf = Number(day.startBuffer) || 0;
+  const eBuf = Number(day.endBuffer) || 0;
+  const startMin = hhmmToMinutes(day.start);
+  const endMin = hhmmToMinutes(day.end);
+  const early = (sBuf && startMin !== null) ? fmtTime(minutesToHhmm(startMin - sBuf)) : '';
+  const late = (eBuf && endMin !== null) ? fmtTime(minutesToHhmm(endMin + eBuf)) : '';
+  if (!start && !end) return '';
+
+  const startGroup = start ? `<span class="t-group">${
+    early ? `<span class="t-side">${escapeHtml(early)}</span><span class="t-inner">–</span>` : ''
+  }<span class="t-main">${escapeHtml(start)}</span></span>` : '';
+
+  const endGroup = end ? `<span class="t-group"><span class="t-main">${escapeHtml(end)}</span>${
+    late ? `<span class="t-inner">–</span><span class="t-side">${escapeHtml(late)}</span>` : ''
+  }</span>` : '';
+
+  const sep = (start && end) ? `<span class="t-sep">–</span>` : '';
+  return `<div class="day-time">${startGroup}${sep}${endGroup}</div>`;
 }
 
 function fmtSavedAt(iso) {
@@ -547,13 +605,13 @@ function render() {
           </div>
         </div>
         <div class="field">
-          <label>${escapeHtml(t('optional'))}</label>
+          <label>${escapeHtml(t('bufferLabel'))}</label>
           <div class="time-row">
-            <label class="inline-label">${escapeHtml(t('earlyStart'))}
-              <select class="time-select" data-day="${i}" data-field="earlyStart">${timeOptionsHtml(day.earlyStart)}</select>
+            <label class="inline-label">${escapeHtml(t('bufferStart'))}
+              <select class="time-select" data-day="${i}" data-field="startBuffer">${bufferOptionsHtml(day.startBuffer)}</select>
             </label>
-            <label class="inline-label">${escapeHtml(t('lateEnd'))}
-              <select class="time-select" data-day="${i}" data-field="lateEnd">${timeOptionsHtml(day.lateEnd)}</select>
+            <label class="inline-label">${escapeHtml(t('bufferEnd'))}
+              <select class="time-select" data-day="${i}" data-field="endBuffer">${bufferOptionsHtml(day.endBuffer)}</select>
             </label>
           </div>
         </div>
@@ -703,7 +761,11 @@ document.getElementById('weekStart').addEventListener('change', e => {
 document.getElementById('days').addEventListener('input', e => {
   const target = e.target;
   if (target.dataset && target.dataset.day !== undefined) {
-    state.days[+target.dataset.day][target.dataset.field] = target.value;
+    const field = target.dataset.field;
+    const value = (field === 'startBuffer' || field === 'endBuffer')
+      ? (Number(target.value) || 0)
+      : target.value;
+    state.days[+target.dataset.day][field] = value;
     scheduleSave();
   }
 });
@@ -727,7 +789,7 @@ document.getElementById('days').addEventListener('click', e => {
     syncFromInputs();
     const d = state.days[idx];
     const hasContent = d.title.trim() || d.plan.trim() ||
-      d.start || d.end || d.earlyStart || d.lateEnd;
+      d.start || d.end || d.startBuffer || d.endBuffer;
     if (hasContent && !confirm(t('confirmClearDay'))) return;
     state.days[idx] = emptyDay();
     render();
@@ -776,7 +838,7 @@ document.getElementById('importFile').addEventListener('change', e => {
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
   const hasContent = state.days.some(d =>
-    d.title.trim() || d.plan.trim() || d.start || d.end || d.earlyStart || d.lateEnd);
+    d.title.trim() || d.plan.trim() || d.start || d.end || d.startBuffer || d.endBuffer);
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = freshState(addDays(state.weekStart, 7));
   render();
