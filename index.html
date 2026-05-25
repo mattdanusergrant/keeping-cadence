@@ -7,15 +7,17 @@
 <!-- #LLM-generated -->
 <style>
   :root {
-    --bg: #fdf8e6;
+    --bg: #f7f3eb;
     --card: #ffffff;
     --ink: #2a2620;
     --muted: #7a6e5a;
     --accent: #a07522;
     --accent-blue: #4d75b0;
+    --accent-green: #4a7d5c;
     --warning: #c84a3d;
-    --border: #ece0bc;
+    --border: #e5dcc6;
     --on-accent: #1c1814;
+    --today-bg: rgba(74, 125, 92, 0.07);
     --shadow: 0 1px 2px rgba(120, 90, 30, 0.08);
   }
   @media (prefers-color-scheme: dark) {
@@ -26,9 +28,11 @@
       --muted: #a89a82;
       --accent: #f0c14d;
       --accent-blue: #7ea7dc;
+      --accent-green: #88c2a0;
       --warning: #e57867;
       --border: #322c20;
       --on-accent: #1c1814;
+      --today-bg: rgba(136, 194, 160, 0.10);
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
   }
@@ -182,17 +186,28 @@
   .day-time.invalid .t-inner,
   .day-time.invalid .t-sep { color: var(--warning); }
   .day {
+    position: relative; overflow: hidden;
     background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0.85rem 1rem;
+    border-radius: 10px;
+    padding: 0.85rem 1rem 0.85rem 1.1rem;
     box-shadow: var(--shadow);
   }
+  .day::before {
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px; background: var(--accent-green);
+    opacity: 0.4;
+  }
+  .day.today { background: var(--today-bg); }
+  .day.today::before { opacity: 1; }
+  .day.today .day-name { color: var(--accent-green); }
   .day-header {
     display: flex; align-items: baseline;
     gap: 0.5rem;
     margin-bottom: 0.3rem;
   }
   .day-name { font-weight: 600; font-size: 1.05rem; }
-  .day-date { color: var(--muted); font-size: 0.85rem; }
+  .day-date { color: var(--accent-green); font-size: 0.85rem; font-weight: 500; }
   .day-time {
     display: flex; align-items: baseline;
     gap: 0.5rem; flex-wrap: nowrap;
@@ -342,7 +357,8 @@
     }
 
     .days { gap: 0.3rem; }
-    .day { padding: 0.5rem 0.75rem; }
+    .day { padding: 0.5rem 0.75rem 0.5rem 0.85rem; }
+    .day::before { width: 3px; }
     .day-header { margin-bottom: 0.15rem; }
     .day-name { font-size: 0.95rem; }
     .day-date { font-size: 0.78rem; }
@@ -649,6 +665,11 @@ function addDays(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+function todayIsoLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function dayDateObj(iso, offset) {
   const d = new Date(iso + 'T00:00:00');
   d.setDate(d.getDate() + offset);
@@ -832,11 +853,13 @@ function render() {
   document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
   document.getElementById('weekStart').value = state.weekStart;
 
+  const todayIso = todayIsoLocal();
   const days = document.getElementById('days');
   days.innerHTML = '';
   state.days.forEach((day, i) => {
+    const dayIso = addDays(state.weekStart, i);
     const el = document.createElement('div');
-    el.className = 'day';
+    el.className = 'day' + (dayIso === todayIso ? ' today' : '');
 
     el.innerHTML = `
       <div class="day-header">
