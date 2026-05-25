@@ -397,7 +397,7 @@
     <div class="header-row">
       <h1 data-i18n="title">Nanny Schedule</h1>
       <div class="header-actions">
-        <button id="langBtn" class="lang-toggle" type="button" aria-label="Toggle language">
+        <button id="langBtn" class="lang-toggle" type="button" data-i18n-aria-label="toggleLanguage" aria-label="Toggle language">
           <span data-lang="en">EN</span><span data-lang="es">ES</span>
         </button>
         <button id="shareBtn" data-i18n="share">Share</button>
@@ -474,6 +474,7 @@ const T = {
     share: 'Share',
     export: 'Export',
     import: 'Import',
+    toggleLanguage: 'Toggle language',
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
     settings: 'Settings',
@@ -519,6 +520,7 @@ const T = {
     share: 'Compartir',
     export: 'Exportar',
     import: 'Importar',
+    toggleLanguage: 'Cambiar idioma',
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
     settings: 'Ajustes',
@@ -745,6 +747,9 @@ function applyStaticTranslations() {
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
   });
   // toggleMode label depends on current mode
   const isEdit = document.body.classList.contains('edit-mode');
