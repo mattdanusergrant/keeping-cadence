@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nanny Schedule</title>
+<!-- #LLM-generated -->
+<style>
+  :root {
+    --bg: #faf8f3;
+    --card: #ffffff;
+    --ink: #1f1f1f;
+    --muted: #6b6b6b;
+    --accent: #b97441;
+    --border: #e7e2d6;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161616;
+      --card: #1f1f1f;
+      --ink: #efece4;
+      --muted: #9a9a9a;
+      --accent: #d99564;
+      --border: #2e2e2e;
+      --shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 1rem;
+    line-height: 1.45;
+    font-size: 16px;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+
+  header {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem;
+  }
+  header .header-text { flex: 1; min-width: 0; }
+  h1 { font-size: 1.4rem; margin: 0 0 0.15rem; font-weight: 600; }
+  .week-label { color: var(--muted); font-size: 0.95rem; }
+  .header-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+  .header-actions button {
+    font: inherit; padding: 0.4rem 0.85rem;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--ink); border-radius: 7px; cursor: pointer;
+  }
+  .header-actions button:hover { border-color: var(--accent); }
+  .header-actions button.primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+
+  .toolbar {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+    margin: 0 0 1rem; padding: 0.6rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: var(--shadow);
+  }
+  .toolbar button, .toolbar .file-label {
+    font: inherit; padding: 0.4rem 0.85rem;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--ink); border-radius: 7px; cursor: pointer;
+    display: inline-block;
+  }
+  .toolbar button:hover, .toolbar .file-label:hover { border-color: var(--accent); }
+  .toolbar .week-picker {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    color: var(--muted); font-size: 0.9rem;
+  }
+  .toolbar input[type=date] {
+    font: inherit; padding: 0.35rem 0.45rem; background: var(--bg);
+    border: 1px solid var(--border); color: var(--ink); border-radius: 6px;
+  }
+  .saved-indicator {
+    margin-left: auto; font-size: 0.8rem; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .saved-indicator.unsaved { color: var(--accent); }
+
+  .notes-section {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+  }
+  .notes-section h2 {
+    font-size: 0.78rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+    margin: 0 0 0.4rem; font-weight: 600;
+  }
+  .notes-section .content { white-space: pre-wrap; }
+  .notes-section .content.empty { color: var(--muted); font-style: italic; }
+
+  textarea, input[type=text] {
+    width: 100%; font: inherit; padding: 0.5rem;
+    background: var(--bg); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+  }
+  textarea { min-height: 3.5rem; line-height: 1.45; }
+
+  .days { display: grid; gap: 0.6rem; }
+  .day {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.85rem 1rem;
+    box-shadow: var(--shadow);
+  }
+  .day-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 0.4rem;
+  }
+  .day-name { font-weight: 600; font-size: 1.05rem; }
+  .day-date { color: var(--muted); font-size: 0.85rem; }
+  .day-title {
+    color: var(--accent); font-weight: 500;
+    margin-bottom: 0.2rem; font-size: 0.95rem;
+  }
+  .day-plan { white-space: pre-wrap; }
+  .day-plan.empty { color: var(--muted); font-style: italic; }
+  .day .field { margin-bottom: 0.5rem; }
+  .day .field:last-child { margin-bottom: 0; }
+  .day .field label {
+    display: block; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); margin-bottom: 0.25rem;
+  }
+
+  body.view-mode .editable { display: none; }
+  body.edit-mode .readonly { display: none; }
+
+  .toast {
+    position: fixed; bottom: 1.25rem; left: 50%;
+    transform: translateX(-50%) translateY(0.5rem);
+    background: var(--ink); color: var(--bg);
+    padding: 0.55rem 1rem; border-radius: 7px; font-size: 0.9rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    opacity: 0; transition: opacity 0.18s, transform 0.18s;
+    pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 520px) {
+    body { padding: 0.75rem; font-size: 15px; }
+    h1 { font-size: 1.25rem; }
+    .toolbar .week-picker { width: 100%; }
+    .saved-indicator { margin-left: 0; width: 100%; text-align: right; }
+  }
+
+  @media print {
+    .toolbar, .header-actions { display: none; }
+    body { background: white; color: black; padding: 0; }
+    .day, .notes-section {
+      box-shadow: none; border: 1px solid #ddd;
+      page-break-inside: avoid;
+    }
+  }
+</style>
+</head>
+<body class="view-mode">
+<div class="container">
+  <header>
+    <div class="header-text">
+      <h1>Nanny Schedule</h1>
+      <div class="week-label" id="weekLabel"></div>
+    </div>
+    <div class="header-actions">
+      <button id="shareBtn" title="Copy a link that loads this schedule">Share</button>
+      <button id="toggleMode" class="primary">Edit</button>
+    </div>
+  </header>
+
+  <div class="toolbar editable">
+    <button id="exportBtn">Export</button>
+    <label class="file-label">
+      Import
+      <input type="file" id="importFile" accept=".json" hidden>
+    </label>
+    <button id="duplicateBtn">Duplicate &rarr; next week</button>
+    <button id="newWeekBtn">New (blank) week</button>
+    <div class="week-picker">
+      <span>Week of</span>
+      <input type="date" id="weekStart">
+    </div>
+    <span class="saved-indicator" id="savedIndicator"></span>
+  </div>
+
+  <section class="notes-section">
+    <h2>Week notes</h2>
+    <div class="readonly content" id="weekNotesView"></div>
+    <textarea class="editable" id="weekNotes"
+      placeholder="Hours, drop-off / pick-up times, emergency contacts, allergies, standing rules..."></textarea>
+  </section>
+
+  <div class="days" id="days"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DRAFT_KEY = 'nanny-schedule-draft';
+const SAVED_AT_KEY = 'nanny-schedule-saved-at';
+
+let state = freshState();
+let saveTimer = null;
+let lastSavedAt = null;
+
+function freshState(startIso) {
+  return {
+    weekStart: startIso || isoMonday(new Date()),
+    weekNotes: '',
+    days: DAY_NAMES.map(() => ({ title: '', plan: '' }))
+  };
+}
+
+function isoMonday(d) {
+  const date = new Date(d);
+  const dow = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - dow);
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtDayDate(iso, offset) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function fmtWeekLabel(iso) {
+  const start = new Date(iso + 'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate() + 6);
+  const opts = { month: 'long', day: 'numeric' };
+  const yearOpts = { ...opts, year: 'numeric' };
+  return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, yearOpts)}`;
+}
+
+function fmtSavedAt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return sameDay
+    ? `Saved ${time}`
+    : `Saved ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function render() {
+  document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
+  document.getElementById('weekStart').value = state.weekStart;
+  document.getElementById('weekNotes').value = state.weekNotes;
+
+  const notesView = document.getElementById('weekNotesView');
+  if (state.weekNotes.trim()) {
+    notesView.textContent = state.weekNotes;
+    notesView.classList.remove('empty');
+  } else {
+    notesView.textContent = 'No notes for this week.';
+    notesView.classList.add('empty');
+  }
+
+  const days = document.getElementById('days');
+  days.innerHTML = '';
+  state.days.forEach((day, i) => {
+    const el = document.createElement('div');
+    el.className = 'day';
+    const planEmpty = !day.plan.trim();
+    el.innerHTML = `
+      <div class="day-header">
+        <span class="day-name">${DAY_NAMES[i]}</span>
+        <span class="day-date">${fmtDayDate(state.weekStart, i)}</span>
+      </div>
+      <div class="readonly">
+        ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
+        <div class="day-plan ${planEmpty ? 'empty' : ''}">${planEmpty ? 'Nothing planned.' : escapeHtml(day.plan)}</div>
+      </div>
+      <div class="editable">
+        <div class="field">
+          <label>Theme (optional)</label>
+          <input type="text" data-day="${i}" data-field="title" value="${escapeHtml(day.title)}" placeholder="e.g. Park day">
+        </div>
+        <div class="field">
+          <label>Plan</label>
+          <textarea data-day="${i}" data-field="plan" placeholder="What's happening that day...">${escapeHtml(day.plan)}</textarea>
+        </div>
+      </div>
+    `;
+    days.appendChild(el);
+  });
+  renderSavedIndicator();
+}
+
+function renderSavedIndicator(override) {
+  const el = document.getElementById('savedIndicator');
+  if (override) {
+    el.textContent = override;
+    el.classList.add('unsaved');
+    return;
+  }
+  el.classList.remove('unsaved');
+  el.textContent = fmtSavedAt(lastSavedAt);
+}
+
+function syncFromInputs() {
+  state.weekNotes = document.getElementById('weekNotes').value;
+  document.querySelectorAll('[data-day]').forEach(el => {
+    state.days[+el.dataset.day][el.dataset.field] = el.value;
+  });
+}
+
+function scheduleSave() {
+  renderSavedIndicator('Saving…');
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+      lastSavedAt = new Date().toISOString();
+      localStorage.setItem(SAVED_AT_KEY, lastSavedAt);
+    } catch (e) {
+      // localStorage may be unavailable (private mode, etc.); fail quietly
+    }
+    renderSavedIndicator();
+  }, 400);
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
+    lastSavedAt = localStorage.getItem(SAVED_AT_KEY);
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(SAVED_AT_KEY);
+  } catch (e) {}
+  lastSavedAt = null;
+}
+
+// Share link: encode state as URL hash fragment, decode on load.
+function encodeStateToHash(s) {
+  const json = JSON.stringify(s);
+  const b64 = btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return '#s=' + b64;
+}
+
+function decodeStateFromHash(hash) {
+  const m = hash.match(/^#s=(.+)$/);
+  if (!m) return null;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+    const json = decodeURIComponent(escape(atob(padded)));
+    const data = JSON.parse(json);
+    if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// --- Event wiring ---
+
+document.getElementById('toggleMode').addEventListener('click', () => {
+  const isEdit = document.body.classList.contains('edit-mode');
+  if (isEdit) {
+    syncFromInputs();
+    document.body.classList.replace('edit-mode', 'view-mode');
+    document.getElementById('toggleMode').textContent = 'Edit';
+    render();
+  } else {
+    document.body.classList.replace('view-mode', 'edit-mode');
+    document.getElementById('toggleMode').textContent = 'Done';
+  }
+});
+
+document.getElementById('weekStart').addEventListener('change', e => {
+  syncFromInputs();
+  state.weekStart = e.target.value;
+  render();
+  scheduleSave();
+});
+
+document.getElementById('weekNotes').addEventListener('input', e => {
+  state.weekNotes = e.target.value;
+  scheduleSave();
+});
+
+document.getElementById('days').addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.day !== undefined) {
+    state.days[+t.dataset.day][t.dataset.field] = t.value;
+    scheduleSave();
+  }
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  syncFromInputs();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nanny-schedule-${state.weekStart}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) {
+        throw new Error('Not a valid schedule file.');
+      }
+      state = {
+        weekStart: data.weekStart,
+        weekNotes: data.weekNotes || '',
+        days: data.days.map(d => ({ title: d.title || '', plan: d.plan || '' }))
+      };
+      render();
+      scheduleSave();
+    } catch (err) {
+      alert('Could not load file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('newWeekBtn').addEventListener('click', () => {
+  syncFromInputs();
+  const hasContent = state.weekNotes.trim() || state.days.some(d => d.title.trim() || d.plan.trim());
+  if (hasContent && !confirm('Start a fresh week? The current draft will be replaced.')) return;
+  state = freshState(addDays(state.weekStart, 7));
+  render();
+  scheduleSave();
+});
+
+document.getElementById('duplicateBtn').addEventListener('click', () => {
+  syncFromInputs();
+  state = {
+    weekStart: addDays(state.weekStart, 7),
+    weekNotes: state.weekNotes,
+    days: state.days.map(d => ({ title: d.title, plan: d.plan }))
+  };
+  render();
+  scheduleSave();
+  showToast('Duplicated to next week');
+});
+
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  syncFromInputs();
+  const url = location.origin + location.pathname + encodeStateToHash(state);
+  const ok = await copyToClipboard(url);
+  if (ok) {
+    showToast('Share link copied');
+  } else {
+    window.prompt('Copy this share link:', url);
+  }
+});
+
+// --- Init ---
+
+(function init() {
+  const fromHash = decodeStateFromHash(location.hash);
+  if (fromHash) {
+    state = fromHash;
+    history.replaceState(null, '', location.pathname + location.search);
+    render();
+    // Hash-loaded view becomes the local draft too, so editing persists.
+    scheduleSave();
+    return;
+  }
+  const draft = loadDraft();
+  if (draft) {
+    state = draft;
+    render();
+    return;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
