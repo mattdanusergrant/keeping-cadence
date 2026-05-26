@@ -135,10 +135,28 @@
 
   .days { display: grid; gap: 0.6rem; }
 
-  .day-track-wrap { margin: 0.4rem 0 0.5rem; }
+  .day-track-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.45rem;
+    row-gap: 0.05rem;
+    margin: 0.3rem 0 0.2rem;
+    align-items: center;
+  }
+  .day-track-grid .day-track-spacer,
+  .day-track-grid .day-track-date {
+    font-size: 0.7rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .day-track-grid .day-track-spacer { visibility: hidden; }
+  .day-track-grid .day-track-date {
+    color: var(--accent-gold);
+    align-self: center;
+  }
   .day-track-axis {
     position: relative; height: 0.85rem;
-    margin-bottom: 0.15rem;
   }
   .day-track-axis .lbl {
     position: absolute; top: 0;
@@ -357,8 +375,13 @@
     }
     .day-line .day-times { font-size: 0.85rem; }
 
-    .day-track-wrap { margin: 0.15rem 0 0.1rem; }
-    .day-track-axis { height: 0.7rem; margin-bottom: 0.08rem; }
+    .day-track-grid {
+      margin: 0.15rem 0 0.1rem;
+      column-gap: 0.35rem;
+    }
+    .day-track-grid .day-track-spacer,
+    .day-track-grid .day-track-date { font-size: 0.62rem; }
+    .day-track-axis { height: 0.7rem; }
     .day-track-axis .lbl { font-size: 0.56rem; }
     .day-track { height: 10px; }
 
@@ -814,6 +837,11 @@ function fmtDayName(iso, offset) {
   return cap(dayDateObj(iso, offset).toLocaleDateString(locale(), { weekday: 'long' }));
 }
 
+function fmtDayNameShort(iso, offset) {
+  const s = dayDateObj(iso, offset).toLocaleDateString(locale(), { weekday: 'short' });
+  return cap(s.replace(/\.$/, ''));
+}
+
 function fmtDayDate(iso, offset) {
   return dayDateObj(iso, offset).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
 }
@@ -930,7 +958,7 @@ function fmtTickHour(mins) {
   return (h - 12) + 'p';
 }
 
-function dayTimelineHtml(day) {
+function dayTimelineHtml(day, dateLabel) {
   const axisMin = hhmmToMinutes(settings.startMin);
   const axisMax = hhmmToMinutes(settings.endMax);
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '';
@@ -981,8 +1009,11 @@ function dayTimelineHtml(day) {
   }
 
   const invalid = isInvalidDayTimes(day);
-  return `<div class="day-track-wrap">
+  const dateCell = dateLabel ? escapeHtml(dateLabel) : '';
+  return `<div class="day-track-grid">
+    <span class="day-track-spacer" aria-hidden="true">${dateCell}</span>
     <div class="day-track-axis">${axisHtml}</div>
+    <span class="day-track-date">${dateCell}</span>
     <div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>
   </div>`;
 }
@@ -999,16 +1030,17 @@ function render() {
     const el = document.createElement('div');
     el.className = 'day' + (dayIso === todayIso ? ' today' : '');
 
+    const dateLabel = fmtDayDateShort(state.weekStart, i);
     el.innerHTML = `
       <div class="day-line">
-        <span class="day-date">${escapeHtml(fmtDayDateShort(state.weekStart, i))}</span>
-        <span class="sep">|</span>
-        <span class="day-name">${escapeHtml(fmtDayName(state.weekStart, i))}</span>
+        <span class="day-date editable">${escapeHtml(dateLabel)}</span>
+        <span class="sep editable">|</span>
+        <span class="day-name">${escapeHtml(fmtDayNameShort(state.weekStart, i))}</span>
         <span class="sep">|</span>
         ${dayTimesInlineHtml(day)}
       </div>
       <div class="readonly">
-        ${dayTimelineHtml(day)}
+        ${dayTimelineHtml(day, dateLabel)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
