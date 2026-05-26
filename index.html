@@ -458,6 +458,14 @@
       <select id="setTheme"></select>
     </div>
     <div class="setting-row">
+      <label for="setMode" data-i18n="modeLabel">Mode</label>
+      <select id="setMode">
+        <option value="auto" data-i18n="modeAuto">Auto (system)</option>
+        <option value="light" data-i18n="modeLight">Light</option>
+        <option value="dark" data-i18n="modeDark">Dark</option>
+      </select>
+    </div>
+    <div class="setting-row">
       <label for="setStartMin" data-i18n="earliestStart">Earliest start</label>
       <input type="time" id="setStartMin">
     </div>
@@ -489,7 +497,8 @@ const SETTINGS_KEY = 'nanny-schedule-settings';
 const DEFAULT_SETTINGS = {
   startMin: '07:00', startMax: '15:00',
   endMin: '12:00',  endMax: '20:00',
-  theme: 'default'
+  theme: 'default',
+  mode: 'auto'
 };
 
 const THEMES = {
@@ -597,9 +606,13 @@ const THEMES = {
   }
 };
 
-function applyTheme(themeName) {
+function applyTheme(themeName, mode) {
   const theme = THEMES[themeName] || THEMES.default;
-  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const effectiveMode = mode || (settings && settings.mode) || 'auto';
+  let isDark;
+  if (effectiveMode === 'light') isDark = false;
+  else if (effectiveMode === 'dark') isDark = true;
+  else isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const palette = isDark ? theme.dark : theme.light;
   const root = document.documentElement;
   for (const [k, v] of Object.entries(palette)) {
@@ -621,6 +634,10 @@ const T = {
     settings: 'Settings',
     settingsTitle: 'Settings',
     colorTheme: 'Color theme',
+    modeLabel: 'Mode',
+    modeAuto: 'Auto (system)',
+    modeLight: 'Light',
+    modeDark: 'Dark',
     earliestStart: 'Earliest start',
     latestStart: 'Latest start',
     earliestEnd: 'Earliest end',
@@ -668,6 +685,10 @@ const T = {
     settings: 'Ajustes',
     settingsTitle: 'Ajustes',
     colorTheme: 'Tema de color',
+    modeLabel: 'Modo',
+    modeAuto: 'Automático (sistema)',
+    modeLight: 'Claro',
+    modeDark: 'Oscuro',
     earliestStart: 'Inicio más temprano',
     latestStart: 'Inicio más tarde',
     earliestEnd: 'Fin más temprano',
@@ -1077,12 +1098,14 @@ function loadSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const p = JSON.parse(raw);
+    const validModes = ['auto', 'light', 'dark'];
     return {
       startMin: p.startMin || DEFAULT_SETTINGS.startMin,
       startMax: p.startMax || DEFAULT_SETTINGS.startMax,
       endMin:   p.endMin   || DEFAULT_SETTINGS.endMin,
       endMax:   p.endMax   || DEFAULT_SETTINGS.endMax,
-      theme:    (THEMES[p.theme] ? p.theme : DEFAULT_SETTINGS.theme)
+      theme:    (THEMES[p.theme] ? p.theme : DEFAULT_SETTINGS.theme),
+      mode:     (validModes.includes(p.mode) ? p.mode : DEFAULT_SETTINGS.mode)
     };
   } catch (e) {
     return { ...DEFAULT_SETTINGS };
@@ -1296,6 +1319,7 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
 
 const settingsModal = document.getElementById('settingsModal');
 let themeOnOpen = null;
+let modeOnOpen = null;
 
 function populateThemeOptions(selected) {
   const select = document.getElementById('setTheme');
@@ -1306,21 +1330,31 @@ function populateThemeOptions(selected) {
   }).join('');
 }
 
+function currentModalSelections() {
+  return {
+    theme: document.getElementById('setTheme').value,
+    mode:  document.getElementById('setMode').value
+  };
+}
+
 function openSettings() {
   populateThemeOptions(settings.theme);
+  document.getElementById('setMode').value     = settings.mode;
   document.getElementById('setStartMin').value = settings.startMin;
   document.getElementById('setStartMax').value = settings.startMax;
   document.getElementById('setEndMin').value   = settings.endMin;
   document.getElementById('setEndMax').value   = settings.endMax;
   themeOnOpen = settings.theme;
+  modeOnOpen = settings.mode;
   settingsModal.hidden = false;
 }
 
 function closeSettings() {
-  // Revert any unsaved theme preview.
-  if (themeOnOpen !== null) {
-    applyTheme(themeOnOpen);
+  // Revert any unsaved theme / mode preview.
+  if (themeOnOpen !== null || modeOnOpen !== null) {
+    applyTheme(themeOnOpen || settings.theme, modeOnOpen || settings.mode);
     themeOnOpen = null;
+    modeOnOpen = null;
   }
   settingsModal.hidden = true;
 }
@@ -1335,9 +1369,14 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
 });
 
-document.getElementById('setTheme').addEventListener('change', e => {
-  // Live preview while the modal is open.
-  applyTheme(e.target.value);
+document.getElementById('setTheme').addEventListener('change', () => {
+  const sel = currentModalSelections();
+  applyTheme(sel.theme, sel.mode);
+});
+
+document.getElementById('setMode').addEventListener('change', () => {
+  const sel = currentModalSelections();
+  applyTheme(sel.theme, sel.mode);
 });
 
 document.getElementById('settingsResetBtn').addEventListener('click', () => {
@@ -1346,17 +1385,20 @@ document.getElementById('settingsResetBtn').addEventListener('click', () => {
   document.getElementById('setEndMin').value   = DEFAULT_SETTINGS.endMin;
   document.getElementById('setEndMax').value   = DEFAULT_SETTINGS.endMax;
   document.getElementById('setTheme').value    = DEFAULT_SETTINGS.theme;
-  applyTheme(DEFAULT_SETTINGS.theme);
+  document.getElementById('setMode').value     = DEFAULT_SETTINGS.mode;
+  applyTheme(DEFAULT_SETTINGS.theme, DEFAULT_SETTINGS.mode);
 });
 
 document.getElementById('settingsSaveBtn').addEventListener('click', () => {
-  const themeVal = document.getElementById('setTheme').value;
+  const sel = currentModalSelections();
+  const validModes = ['auto', 'light', 'dark'];
   const next = {
     startMin: document.getElementById('setStartMin').value || DEFAULT_SETTINGS.startMin,
     startMax: document.getElementById('setStartMax').value || DEFAULT_SETTINGS.startMax,
     endMin:   document.getElementById('setEndMin').value   || DEFAULT_SETTINGS.endMin,
     endMax:   document.getElementById('setEndMax').value   || DEFAULT_SETTINGS.endMax,
-    theme:    THEMES[themeVal] ? themeVal : DEFAULT_SETTINGS.theme
+    theme:    THEMES[sel.theme] ? sel.theme : DEFAULT_SETTINGS.theme,
+    mode:     validModes.includes(sel.mode) ? sel.mode : DEFAULT_SETTINGS.mode
   };
   // If max < min, swap so the range is always valid.
   if (hhmmToMinutes(next.startMax) < hhmmToMinutes(next.startMin)) {
@@ -1367,8 +1409,9 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
   }
   settings = next;
   saveSettings(settings);
-  applyTheme(settings.theme);
+  applyTheme(settings.theme, settings.mode);
   themeOnOpen = null;
+  modeOnOpen = null;
   settingsModal.hidden = true;
   syncFromInputs();
   render();
@@ -1377,11 +1420,11 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
 // --- Init ---
 
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  applyTheme(settings.theme);
+  if (settings.mode === 'auto') applyTheme(settings.theme, settings.mode);
 });
 
 (function init() {
-  applyTheme(settings.theme);
+  applyTheme(settings.theme, settings.mode);
   document.body.classList.add('lang-' + lang);
   applyStaticTranslations();
   const fromHash = decodeStateFromHash(location.hash);
