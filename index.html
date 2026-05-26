@@ -246,6 +246,7 @@
     color: var(--muted); font-weight: 400;
     font-size: 0.82em;
   }
+  .day-times .dash { color: var(--warning); font-weight: 700; }
   .day-times.invalid { color: var(--warning); }
   .day-times.invalid .buffer { color: var(--warning); opacity: 0.7; }
   .day-times.day-off-mark {
@@ -553,14 +554,14 @@ const THEMES = {
     label: { en: 'Colombia', es: 'Colombia' },
     light: {
       bg: '#f4f6fa', card: '#ffffff', ink: '#1a1f2e', muted: '#6b7a8c',
-      accent: '#003893', 'accent-blue': '#4a72ad', 'accent-gold': '#a07522',
+      accent: '#003893', 'accent-blue': '#ce1126', 'accent-gold': '#a07522',
       warning: '#ce1126', border: '#d6dde6', 'on-accent': '#ffffff',
       'today-bg': 'rgba(252, 209, 22, 0.13)',
       shadow: '0 1px 2px rgba(0, 20, 60, 0.06)'
     },
     dark: {
       bg: '#0e1626', card: '#182338', ink: '#ebeef6', muted: '#8d9aae',
-      accent: '#5d8acf', 'accent-blue': '#7aa2d4', 'accent-gold': '#fcd116',
+      accent: '#5d8acf', 'accent-blue': '#e07069', 'accent-gold': '#fcd116',
       warning: '#e07069', border: '#2a3548', 'on-accent': '#1c1814',
       'today-bg': 'rgba(252, 209, 22, 0.13)',
       shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
@@ -921,7 +922,7 @@ function dayTimesInlineHtml(day) {
   let inner = '';
   if (early) inner += `<span class="buffer">${escapeHtml(early)}</span> `;
   if (start) inner += escapeHtml(start);
-  if (start && end) inner += ' – ';
+  if (start && end) inner += ' <span class="dash">–</span> ';
   if (end) inner += escapeHtml(end);
   if (late) inner += ` <span class="buffer">${escapeHtml(late)}</span>`;
 
