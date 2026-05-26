@@ -161,7 +161,7 @@
     font-weight: 500;
     color: var(--accent-gold);
   }
-  .day.today .day-track-date .dn { color: var(--accent-gold); }
+  .day.today .day-track-date .dn { color: var(--warning); }
   .day-track-axis {
     position: relative; height: 0.85rem;
   }
@@ -215,8 +215,8 @@
   .day::before {
     content: ''; position: absolute;
     left: 0; top: 0; bottom: 0;
-    width: 4px; background: var(--accent-gold);
-    opacity: 0.4;
+    width: 4px; background: var(--warning);
+    opacity: 0.5;
   }
   .day.today { background: var(--today-bg); }
   .day.today::before { opacity: 1; }
