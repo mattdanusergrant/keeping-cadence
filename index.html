@@ -7,33 +7,33 @@
 <!-- #LLM-generated -->
 <style>
   :root {
-    --bg: #f7f3eb;
+    --bg: #faf8f3;
     --card: #ffffff;
-    --ink: #2a2620;
-    --muted: #7a6e5a;
-    --accent: #4a7d5c;
-    --accent-blue: #4d75b0;
-    --accent-gold: #a07522;
-    --warning: #c84a3d;
-    --border: #e5dcc6;
+    --ink: #1f1f1f;
+    --muted: #6b6b6b;
+    --accent: #b97441;
+    --accent-blue: #b97441;
+    --accent-gold: #b97441;
+    --warning: #c0524a;
+    --border: #e7e2d6;
     --on-accent: #ffffff;
-    --today-bg: rgba(160, 117, 34, 0.07);
-    --shadow: 0 1px 2px rgba(120, 90, 30, 0.08);
+    --today-bg: rgba(185, 116, 65, 0.07);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #1a1814;
-      --card: #221f18;
-      --ink: #f3edda;
-      --muted: #a89a82;
-      --accent: #88c2a0;
-      --accent-blue: #7ea7dc;
-      --accent-gold: #f0c14d;
-      --warning: #e57867;
-      --border: #322c20;
-      --on-accent: #1c1814;
-      --today-bg: rgba(240, 193, 77, 0.10);
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --bg: #161616;
+      --card: #1f1f1f;
+      --ink: #efece4;
+      --muted: #9a9a9a;
+      --accent: #d99564;
+      --accent-blue: #d99564;
+      --accent-gold: #d99564;
+      --warning: #e07b6f;
+      --border: #2e2e2e;
+      --on-accent: #ffffff;
+      --today-bg: rgba(217, 149, 100, 0.08);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
   }
   * { box-sizing: border-box; }
@@ -307,7 +307,8 @@
     margin-bottom: 0.55rem;
   }
   .setting-row label { font-size: 0.92rem; }
-  .setting-row input[type=time] {
+  .setting-row input[type=time],
+  .setting-row select {
     font: inherit; padding: 0.3rem 0.45rem;
     background: var(--bg); color: var(--ink);
     border: 1px solid var(--border); border-radius: 6px;
@@ -451,7 +452,11 @@
 <div class="modal" id="settingsModal" hidden>
   <div class="modal-backdrop" data-modal-close></div>
   <div class="modal-card" role="dialog" aria-labelledby="settingsHeading">
-    <h2 id="settingsHeading" data-i18n="settingsTitle">Time settings</h2>
+    <h2 id="settingsHeading" data-i18n="settingsTitle">Settings</h2>
+    <div class="setting-row">
+      <label for="setTheme" data-i18n="colorTheme">Color theme</label>
+      <select id="setTheme"></select>
+    </div>
     <div class="setting-row">
       <label for="setStartMin" data-i18n="earliestStart">Earliest start</label>
       <input type="time" id="setStartMin">
@@ -483,8 +488,124 @@ const LANG_KEY = 'nanny-schedule-lang';
 const SETTINGS_KEY = 'nanny-schedule-settings';
 const DEFAULT_SETTINGS = {
   startMin: '07:00', startMax: '15:00',
-  endMin: '12:00',  endMax: '20:00'
+  endMin: '12:00',  endMax: '20:00',
+  theme: 'default'
 };
+
+const THEMES = {
+  default: {
+    label: { en: 'Default', es: 'Por defecto' },
+    light: {
+      bg: '#faf8f3', card: '#ffffff', ink: '#1f1f1f', muted: '#6b6b6b',
+      accent: '#b97441', 'accent-blue': '#b97441', 'accent-gold': '#b97441',
+      warning: '#c0524a', border: '#e7e2d6', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(185, 116, 65, 0.07)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+    },
+    dark: {
+      bg: '#161616', card: '#1f1f1f', ink: '#efece4', muted: '#9a9a9a',
+      accent: '#d99564', 'accent-blue': '#d99564', 'accent-gold': '#d99564',
+      warning: '#e07b6f', border: '#2e2e2e', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(217, 149, 100, 0.08)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+    }
+  },
+  colombia: {
+    label: { en: 'Colombia', es: 'Colombia' },
+    light: {
+      bg: '#f7f3eb', card: '#ffffff', ink: '#2a2620', muted: '#7a6e5a',
+      accent: '#4a7d5c', 'accent-blue': '#4d75b0', 'accent-gold': '#a07522',
+      warning: '#c84a3d', border: '#e5dcc6', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(160, 117, 34, 0.07)',
+      shadow: '0 1px 2px rgba(120, 90, 30, 0.08)'
+    },
+    dark: {
+      bg: '#1a1814', card: '#221f18', ink: '#f3edda', muted: '#a89a82',
+      accent: '#88c2a0', 'accent-blue': '#7ea7dc', 'accent-gold': '#f0c14d',
+      warning: '#e57867', border: '#322c20', 'on-accent': '#1c1814',
+      'today-bg': 'rgba(240, 193, 77, 0.10)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+    }
+  },
+  ocean: {
+    label: { en: 'Ocean', es: 'Océano' },
+    light: {
+      bg: '#eef5f8', card: '#ffffff', ink: '#1d2a35', muted: '#5b7385',
+      accent: '#2e7a96', 'accent-blue': '#3d5a98', 'accent-gold': '#dd8b56',
+      warning: '#c85a52', border: '#d4e0e8', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(221, 139, 86, 0.10)',
+      shadow: '0 1px 2px rgba(30, 60, 90, 0.06)'
+    },
+    dark: {
+      bg: '#0e1a22', card: '#152431', ink: '#e0eaf0', muted: '#7a96aa',
+      accent: '#58b5d5', 'accent-blue': '#6a8acf', 'accent-gold': '#e8a87a',
+      warning: '#e57867', border: '#2a3a48', 'on-accent': '#0c1620',
+      'today-bg': 'rgba(232, 168, 122, 0.10)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+    }
+  },
+  forest: {
+    label: { en: 'Forest', es: 'Bosque' },
+    light: {
+      bg: '#f1f4ed', card: '#ffffff', ink: '#1f2a1c', muted: '#637058',
+      accent: '#4a6b3f', 'accent-blue': '#6a8d3d', 'accent-gold': '#a87a3f',
+      warning: '#b85a3d', border: '#dde6d2', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(168, 122, 63, 0.10)',
+      shadow: '0 1px 2px rgba(40, 60, 30, 0.07)'
+    },
+    dark: {
+      bg: '#11160e', card: '#1a2116', ink: '#e6ecde', muted: '#8a9b7a',
+      accent: '#88b27e', 'accent-blue': '#a8bf75', 'accent-gold': '#d49c5e',
+      warning: '#e07b6f', border: '#2a3324', 'on-accent': '#0c1408',
+      'today-bg': 'rgba(212, 156, 94, 0.10)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+    }
+  },
+  sunset: {
+    label: { en: 'Sunset', es: 'Atardecer' },
+    light: {
+      bg: '#fbf1e9', card: '#ffffff', ink: '#2a1f1a', muted: '#86684f',
+      accent: '#c45a3d', 'accent-blue': '#9a5896', 'accent-gold': '#e8a548',
+      warning: '#a83626', border: '#ecd9c6', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(232, 165, 72, 0.10)',
+      shadow: '0 1px 2px rgba(120, 70, 30, 0.08)'
+    },
+    dark: {
+      bg: '#1a110d', card: '#221814', ink: '#f5e6d6', muted: '#a89380',
+      accent: '#f08c69', 'accent-blue': '#c280bc', 'accent-gold': '#f0c178',
+      warning: '#e57867', border: '#3a261d', 'on-accent': '#1a110d',
+      'today-bg': 'rgba(240, 193, 120, 0.10)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+    }
+  },
+  berry: {
+    label: { en: 'Berry', es: 'Baya' },
+    light: {
+      bg: '#f6eef3', card: '#ffffff', ink: '#291c25', muted: '#7e5e75',
+      accent: '#9d2a76', 'accent-blue': '#5d6fb6', 'accent-gold': '#b86a8a',
+      warning: '#c84a3d', border: '#e6d4dd', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(184, 106, 138, 0.10)',
+      shadow: '0 1px 2px rgba(80, 30, 60, 0.07)'
+    },
+    dark: {
+      bg: '#160e15', card: '#1f1620', ink: '#f0e3ec', muted: '#a387a0',
+      accent: '#d472af', 'accent-blue': '#8b9cd9', 'accent-gold': '#dd92a8',
+      warning: '#e57867', border: '#2f1f2c', 'on-accent': '#160e15',
+      'today-bg': 'rgba(221, 146, 168, 0.10)',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+    }
+  }
+};
+
+function applyTheme(themeName) {
+  const theme = THEMES[themeName] || THEMES.default;
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const palette = isDark ? theme.dark : theme.light;
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(palette)) {
+    root.style.setProperty('--' + k, v);
+  }
+}
 
 const T = {
   en: {
@@ -498,7 +619,8 @@ const T = {
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
     settings: 'Settings',
-    settingsTitle: 'Time settings',
+    settingsTitle: 'Settings',
+    colorTheme: 'Color theme',
     earliestStart: 'Earliest start',
     latestStart: 'Latest start',
     earliestEnd: 'Earliest end',
@@ -544,7 +666,8 @@ const T = {
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
     settings: 'Ajustes',
-    settingsTitle: 'Ajustes de hora',
+    settingsTitle: 'Ajustes',
+    colorTheme: 'Tema de color',
     earliestStart: 'Inicio más temprano',
     latestStart: 'Inicio más tarde',
     earliestEnd: 'Fin más temprano',
@@ -958,7 +1081,8 @@ function loadSettings() {
       startMin: p.startMin || DEFAULT_SETTINGS.startMin,
       startMax: p.startMax || DEFAULT_SETTINGS.startMax,
       endMin:   p.endMin   || DEFAULT_SETTINGS.endMin,
-      endMax:   p.endMax   || DEFAULT_SETTINGS.endMax
+      endMax:   p.endMax   || DEFAULT_SETTINGS.endMax,
+      theme:    (THEMES[p.theme] ? p.theme : DEFAULT_SETTINGS.theme)
     };
   } catch (e) {
     return { ...DEFAULT_SETTINGS };
@@ -1171,16 +1295,33 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
 // --- Settings modal ---
 
 const settingsModal = document.getElementById('settingsModal');
+let themeOnOpen = null;
+
+function populateThemeOptions(selected) {
+  const select = document.getElementById('setTheme');
+  select.innerHTML = Object.entries(THEMES).map(([key, theme]) => {
+    const sel = key === selected ? ' selected' : '';
+    const label = (theme.label && theme.label[lang]) || theme.label.en || key;
+    return `<option value="${key}"${sel}>${escapeHtml(label)}</option>`;
+  }).join('');
+}
 
 function openSettings() {
+  populateThemeOptions(settings.theme);
   document.getElementById('setStartMin').value = settings.startMin;
   document.getElementById('setStartMax').value = settings.startMax;
   document.getElementById('setEndMin').value   = settings.endMin;
   document.getElementById('setEndMax').value   = settings.endMax;
+  themeOnOpen = settings.theme;
   settingsModal.hidden = false;
 }
 
 function closeSettings() {
+  // Revert any unsaved theme preview.
+  if (themeOnOpen !== null) {
+    applyTheme(themeOnOpen);
+    themeOnOpen = null;
+  }
   settingsModal.hidden = true;
 }
 
@@ -1194,19 +1335,28 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
 });
 
+document.getElementById('setTheme').addEventListener('change', e => {
+  // Live preview while the modal is open.
+  applyTheme(e.target.value);
+});
+
 document.getElementById('settingsResetBtn').addEventListener('click', () => {
   document.getElementById('setStartMin').value = DEFAULT_SETTINGS.startMin;
   document.getElementById('setStartMax').value = DEFAULT_SETTINGS.startMax;
   document.getElementById('setEndMin').value   = DEFAULT_SETTINGS.endMin;
   document.getElementById('setEndMax').value   = DEFAULT_SETTINGS.endMax;
+  document.getElementById('setTheme').value    = DEFAULT_SETTINGS.theme;
+  applyTheme(DEFAULT_SETTINGS.theme);
 });
 
 document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+  const themeVal = document.getElementById('setTheme').value;
   const next = {
     startMin: document.getElementById('setStartMin').value || DEFAULT_SETTINGS.startMin,
     startMax: document.getElementById('setStartMax').value || DEFAULT_SETTINGS.startMax,
     endMin:   document.getElementById('setEndMin').value   || DEFAULT_SETTINGS.endMin,
-    endMax:   document.getElementById('setEndMax').value   || DEFAULT_SETTINGS.endMax
+    endMax:   document.getElementById('setEndMax').value   || DEFAULT_SETTINGS.endMax,
+    theme:    THEMES[themeVal] ? themeVal : DEFAULT_SETTINGS.theme
   };
   // If max < min, swap so the range is always valid.
   if (hhmmToMinutes(next.startMax) < hhmmToMinutes(next.startMin)) {
@@ -1217,14 +1367,21 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
   }
   settings = next;
   saveSettings(settings);
-  closeSettings();
+  applyTheme(settings.theme);
+  themeOnOpen = null;
+  settingsModal.hidden = true;
   syncFromInputs();
   render();
 });
 
 // --- Init ---
 
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  applyTheme(settings.theme);
+});
+
 (function init() {
+  applyTheme(settings.theme);
   document.body.classList.add('lang-' + lang);
   applyStaticTranslations();
   const fromHash = decodeStateFromHash(location.hash);
