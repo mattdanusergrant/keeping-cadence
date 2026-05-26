@@ -180,16 +180,11 @@
     );
     opacity: 0.75;
   }
-  .day-time.invalid,
-  .day-time.invalid .t-main,
-  .day-time.invalid .t-side,
-  .day-time.invalid .t-inner,
-  .day-time.invalid .t-sep { color: var(--warning); }
   .day {
     position: relative; overflow: hidden;
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 0.85rem 1rem 0.85rem 1.1rem;
+    padding: 0.65rem 0.85rem 0.65rem 1rem;
     box-shadow: var(--shadow);
   }
   .day::before {
@@ -201,35 +196,31 @@
   .day.today { background: var(--today-bg); }
   .day.today::before { opacity: 1; }
   .day.today .day-name { color: var(--accent-gold); }
-  .day-header {
+  .day-line {
     display: flex; align-items: baseline;
     gap: 0.5rem;
-    margin-bottom: 0.3rem;
-  }
-  .day-name { font-weight: 600; font-size: 1.05rem; }
-  .day-date { color: var(--accent-gold); font-size: 0.85rem; font-weight: 500; }
-  .day-time {
-    display: flex; align-items: baseline;
-    gap: 0.5rem; flex-wrap: nowrap;
-    color: var(--accent); font-weight: 600;
     margin-bottom: 0.2rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    overflow: hidden;
+    font-size: 0.95rem;
   }
-  .day-time .t-group {
-    display: inline-flex; align-items: baseline; gap: 0.2rem;
+  .day-line .sep { color: var(--muted); font-weight: 300; }
+  .day-line .day-date { color: var(--accent-gold); font-weight: 500; }
+  .day-line .day-name { font-weight: 600; }
+  .day-line .day-times {
+    color: var(--accent); font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
   }
-  .day-time .t-main { font-size: 1.1rem; }
-  .day-time .t-side {
-    font-size: 0.78rem; color: var(--muted); font-weight: 500;
+  .day-line .day-times .buffer {
+    color: var(--muted); font-weight: 400;
+    font-size: 0.82em;
   }
-  .day-time .t-inner {
-    font-size: 0.78rem; color: var(--muted); font-weight: 500;
-  }
-  .day-time .t-sep { font-size: 1.05rem; }
-  .day-off {
-    color: var(--muted); font-style: italic;
-    font-size: 0.95rem; margin-bottom: 0.2rem;
+  .day-line .day-times.invalid { color: var(--warning); }
+  .day-line .day-times.invalid .buffer { color: var(--warning); opacity: 0.7; }
+  .day-line .day-times.day-off-mark {
+    color: var(--muted); font-style: italic; font-weight: 400;
   }
   .day-title {
     color: var(--accent); font-weight: 500;
@@ -360,18 +351,13 @@
     .days { gap: 0.3rem; }
     .day { padding: 0.5rem 0.75rem 0.5rem 0.85rem; }
     .day::before { width: 3px; }
-    .day-header { margin-bottom: 0.15rem; }
-    .day-name { font-size: 0.95rem; }
-    .day-date { font-size: 0.78rem; }
-    .day-time { gap: 0.3rem; margin-bottom: 0.1rem; }
-    .day-time .t-group { gap: 0.15rem; }
-    .day-time .t-main { font-size: 0.95rem; }
-    .day-time .t-side { font-size: 0.7rem; }
-    .day-time .t-inner { font-size: 0.7rem; }
-    .day-time .t-sep { font-size: 0.9rem; }
-    .day-off { font-size: 0.85rem; margin-bottom: 0.1rem; }
+    .day-line {
+      gap: 0.35rem; font-size: 0.85rem;
+      margin-bottom: 0.15rem;
+    }
+    .day-line .day-times { font-size: 0.85rem; }
 
-    .day-track-wrap { margin: 0.2rem 0 0.15rem; }
+    .day-track-wrap { margin: 0.15rem 0 0.1rem; }
     .day-track-axis { height: 0.7rem; margin-bottom: 0.08rem; }
     .day-track-axis .lbl { font-size: 0.56rem; }
     .day-track { height: 10px; }
@@ -862,28 +848,36 @@ function fmtTime(hhmm) {
   return d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
 }
 
-function dayTimeHtml(day) {
+function fmtDayDateShort(iso, offset) {
+  const d = dayDateObj(iso, offset);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${m}/${day}`;
+}
+
+function dayTimesInlineHtml(day) {
   const start = fmtTime(day.start);
   const end = fmtTime(day.end);
   const sBuf = Number(day.startBuffer) || 0;
   const eBuf = Number(day.endBuffer) || 0;
-  const startMin = hhmmToMinutes(day.start);
-  const endMin = hhmmToMinutes(day.end);
-  const early = (sBuf && startMin !== null) ? fmtTime(minutesToHhmm(startMin - sBuf)) : '';
-  const late = (eBuf && endMin !== null) ? fmtTime(minutesToHhmm(endMin + eBuf)) : '';
-  if (!start && !end) return `<div class="day-off">${escapeHtml(t('dayOff'))}</div>`;
+  const sMin = hhmmToMinutes(day.start);
+  const eMin = hhmmToMinutes(day.end);
+  const early = (sBuf && sMin !== null) ? fmtTime(minutesToHhmm(sMin - sBuf)) : '';
+  const late = (eBuf && eMin !== null) ? fmtTime(minutesToHhmm(eMin + eBuf)) : '';
 
-  const startGroup = start ? `<span class="t-group">${
-    early ? `<span class="t-side">${escapeHtml(early)}</span><span class="t-inner">–</span>` : ''
-  }<span class="t-main">${escapeHtml(start)}</span></span>` : '';
+  if (!start && !end) {
+    return `<span class="day-times day-off-mark">${escapeHtml(t('dayOff'))}</span>`;
+  }
 
-  const endGroup = end ? `<span class="t-group"><span class="t-main">${escapeHtml(end)}</span>${
-    late ? `<span class="t-inner">–</span><span class="t-side">${escapeHtml(late)}</span>` : ''
-  }</span>` : '';
+  let inner = '';
+  if (early) inner += `<span class="buffer">${escapeHtml(early)}</span>, `;
+  if (start) inner += escapeHtml(start);
+  if (start && end) inner += ' – ';
+  if (end) inner += escapeHtml(end);
+  if (late) inner += `, <span class="buffer">${escapeHtml(late)}</span>`;
 
-  const sep = (start && end) ? `<span class="t-sep">–</span>` : '';
   const invalid = isInvalidDayTimes(day);
-  return `<div class="day-time${invalid ? ' invalid' : ''}">${startGroup}${sep}${endGroup}</div>`;
+  return `<span class="day-times${invalid ? ' invalid' : ''}">${inner}</span>`;
 }
 
 function isInvalidDayTimes(day) {
@@ -1006,12 +1000,14 @@ function render() {
     el.className = 'day' + (dayIso === todayIso ? ' today' : '');
 
     el.innerHTML = `
-      <div class="day-header">
+      <div class="day-line">
+        <span class="day-date">${escapeHtml(fmtDayDateShort(state.weekStart, i))}</span>
+        <span class="sep">|</span>
         <span class="day-name">${escapeHtml(fmtDayName(state.weekStart, i))}</span>
-        <span class="day-date">${escapeHtml(fmtDayDate(state.weekStart, i))}</span>
+        <span class="sep">|</span>
+        ${dayTimesInlineHtml(day)}
       </div>
       <div class="readonly">
-        ${dayTimeHtml(day)}
         ${dayTimelineHtml(day)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
