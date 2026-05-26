@@ -146,16 +146,22 @@
   .day-track-grid .day-track-spacer,
   .day-track-grid .day-track-date {
     font-size: 0.7rem;
-    font-weight: 500;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .day-track-grid .day-track-spacer { visibility: hidden; }
-  .day-track-grid .day-track-date {
-    color: var(--accent-gold);
-    align-self: center;
+  .day-track-grid .day-track-date { align-self: center; }
+  .day-track-grid .day-track-spacer .dn,
+  .day-track-grid .day-track-date .dn {
+    font-weight: 700;
+    color: var(--ink);
   }
-  .day.today .day-track-date { font-weight: 700; }
+  .day-track-grid .day-track-spacer .dt,
+  .day-track-grid .day-track-date .dt {
+    font-weight: 500;
+    color: var(--accent-gold);
+  }
+  .day.today .day-track-date .dn { color: var(--accent-gold); }
   .day-track-axis {
     position: relative; height: 0.85rem;
   }
@@ -228,18 +234,26 @@
   .day-line .day-date { color: var(--accent-gold); font-weight: 500; }
   .day-line .day-name { font-weight: 600; }
   .day-line .day-times {
-    color: var(--accent); font-weight: 600;
     overflow: hidden; text-overflow: ellipsis;
     flex: 1; min-width: 0;
   }
-  .day-line .day-times .buffer {
+  .day-times {
+    color: var(--accent); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .day-times .buffer {
     color: var(--muted); font-weight: 400;
     font-size: 0.82em;
   }
-  .day-line .day-times.invalid { color: var(--warning); }
-  .day-line .day-times.invalid .buffer { color: var(--warning); opacity: 0.7; }
-  .day-line .day-times.day-off-mark {
+  .day-times.invalid { color: var(--warning); }
+  .day-times.invalid .buffer { color: var(--warning); opacity: 0.7; }
+  .day-times.day-off-mark {
     color: var(--muted); font-style: italic; font-weight: 400;
+  }
+  .day-times-row {
+    margin-top: 0.15rem;
+    font-size: 0.9rem;
   }
   .day-title {
     color: var(--accent); font-weight: 500;
@@ -374,7 +388,8 @@
       gap: 0.35rem; font-size: 0.85rem;
       margin-bottom: 0.15rem;
     }
-    .day-line .day-times { font-size: 0.85rem; }
+    .day-times { font-size: 0.85rem; }
+    .day-times-row { font-size: 0.85rem; margin-top: 0.1rem; }
 
     .day-track-grid {
       margin: 0.15rem 0 0.1rem;
@@ -899,11 +914,11 @@ function dayTimesInlineHtml(day) {
   }
 
   let inner = '';
-  if (early) inner += `<span class="buffer">${escapeHtml(early)}</span>, `;
+  if (early) inner += `<span class="buffer">${escapeHtml(early)}</span> `;
   if (start) inner += escapeHtml(start);
   if (start && end) inner += ' – ';
   if (end) inner += escapeHtml(end);
-  if (late) inner += `, <span class="buffer">${escapeHtml(late)}</span>`;
+  if (late) inner += ` <span class="buffer">${escapeHtml(late)}</span>`;
 
   const invalid = isInvalidDayTimes(day);
   return `<span class="day-times${invalid ? ' invalid' : ''}">${inner}</span>`;
@@ -1010,12 +1025,13 @@ function dayTimelineHtml(day, dayName, dateLabel) {
   }
 
   const invalid = isInvalidDayTimes(day);
-  const labelText = [dayName, dateLabel].filter(Boolean).join(' ');
-  const labelCell = labelText ? escapeHtml(labelText) : '';
+  const labelInner = (dayName || dateLabel)
+    ? `${dayName ? `<span class="dn">${escapeHtml(dayName)}</span>` : ''}${dayName && dateLabel ? ' ' : ''}${dateLabel ? `<span class="dt">${escapeHtml(dateLabel)}</span>` : ''}`
+    : '';
   return `<div class="day-track-grid">
-    <span class="day-track-spacer" aria-hidden="true">${labelCell}</span>
+    <span class="day-track-spacer" aria-hidden="true">${labelInner}</span>
     <div class="day-track-axis">${axisHtml}</div>
-    <span class="day-track-date">${labelCell}</span>
+    <span class="day-track-date">${labelInner}</span>
     <div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>
   </div>`;
 }
@@ -1035,15 +1051,16 @@ function render() {
     const dateLabel = fmtDayDateShort(state.weekStart, i);
     const dayNameShort = fmtDayNameShort(state.weekStart, i);
     el.innerHTML = `
-      <div class="day-line">
-        <span class="day-date editable">${escapeHtml(dateLabel)}</span>
-        <span class="sep editable">|</span>
-        <span class="day-name editable">${escapeHtml(dayNameShort)}</span>
-        <span class="sep editable">|</span>
+      <div class="day-line editable">
+        <span class="day-date">${escapeHtml(dateLabel)}</span>
+        <span class="sep">|</span>
+        <span class="day-name">${escapeHtml(dayNameShort)}</span>
+        <span class="sep">|</span>
         ${dayTimesInlineHtml(day)}
       </div>
       <div class="readonly">
         ${dayTimelineHtml(day, dayNameShort, dateLabel)}
+        <div class="day-times-row">${dayTimesInlineHtml(day)}</div>
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
