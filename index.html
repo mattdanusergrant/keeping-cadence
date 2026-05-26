@@ -155,6 +155,7 @@
     color: var(--accent-gold);
     align-self: center;
   }
+  .day.today .day-track-date { font-weight: 700; }
   .day-track-axis {
     position: relative; height: 0.85rem;
   }
@@ -958,7 +959,7 @@ function fmtTickHour(mins) {
   return (h - 12) + 'p';
 }
 
-function dayTimelineHtml(day, dateLabel) {
+function dayTimelineHtml(day, dayName, dateLabel) {
   const axisMin = hhmmToMinutes(settings.startMin);
   const axisMax = hhmmToMinutes(settings.endMax);
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '';
@@ -1009,11 +1010,12 @@ function dayTimelineHtml(day, dateLabel) {
   }
 
   const invalid = isInvalidDayTimes(day);
-  const dateCell = dateLabel ? escapeHtml(dateLabel) : '';
+  const labelText = [dayName, dateLabel].filter(Boolean).join(' ');
+  const labelCell = labelText ? escapeHtml(labelText) : '';
   return `<div class="day-track-grid">
-    <span class="day-track-spacer" aria-hidden="true">${dateCell}</span>
+    <span class="day-track-spacer" aria-hidden="true">${labelCell}</span>
     <div class="day-track-axis">${axisHtml}</div>
-    <span class="day-track-date">${dateCell}</span>
+    <span class="day-track-date">${labelCell}</span>
     <div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>
   </div>`;
 }
@@ -1031,16 +1033,17 @@ function render() {
     el.className = 'day' + (dayIso === todayIso ? ' today' : '');
 
     const dateLabel = fmtDayDateShort(state.weekStart, i);
+    const dayNameShort = fmtDayNameShort(state.weekStart, i);
     el.innerHTML = `
       <div class="day-line">
         <span class="day-date editable">${escapeHtml(dateLabel)}</span>
         <span class="sep editable">|</span>
-        <span class="day-name">${escapeHtml(fmtDayNameShort(state.weekStart, i))}</span>
-        <span class="sep">|</span>
+        <span class="day-name editable">${escapeHtml(dayNameShort)}</span>
+        <span class="sep editable">|</span>
         ${dayTimesInlineHtml(day)}
       </div>
       <div class="readonly">
-        ${dayTimelineHtml(day, dateLabel)}
+        ${dayTimelineHtml(day, dayNameShort, dateLabel)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
