@@ -119,12 +119,13 @@
   }
   .saved-indicator.unsaved { color: var(--accent); }
 
-  textarea, input[type=text], input[type=time], select.time-select {
+  textarea, input[type=text], input[type=time], input[type=number], select.time-select {
     font: inherit; padding: 0.5rem;
     background: var(--bg); color: var(--ink);
     border: 1px solid var(--border); border-radius: 6px;
   }
   input[type=text] { width: 100%; }
+  input.hours-input { width: 6rem; padding: 0.35rem 0.5rem; font-variant-numeric: tabular-nums; }
   textarea { width: 100%; min-height: 3.5rem; line-height: 1.45; resize: vertical; }
   input[type=time] { padding: 0.35rem 0.45rem; }
   select.time-select {
@@ -258,6 +259,39 @@
     text-align: center;
     word-spacing: 0.35em;
   }
+  .day-hours-row {
+    margin-top: 0.1rem;
+    font-size: 0.75rem;
+    text-align: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .day-hours-row .est { color: var(--muted); font-weight: 500; }
+  .day-hours-row .actual { color: var(--accent); font-weight: 600; }
+  .day-hours-row .sep { opacity: 0.5; margin: 0 0.15rem; }
+
+  .week-summary {
+    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .week-summary[hidden] { display: none; }
+  .week-summary .lbl {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 0.2rem;
+  }
+  .week-summary .est { color: var(--ink); font-weight: 600; }
+  .week-summary .actual { color: var(--accent); font-weight: 600; }
+  .week-summary .sep { opacity: 0.4; margin: 0 0.35rem; }
   .day-title {
     color: var(--accent); font-weight: 500;
     margin-bottom: 0.2rem; font-size: 0.95rem;
@@ -396,6 +430,13 @@
       font-size: 0.85rem; margin-top: 0.1rem;
       word-spacing: 0.3em;
     }
+    .day-hours-row { font-size: 0.7rem; margin-top: 0.05rem; }
+    .week-summary {
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.8rem;
+    }
+    .week-summary .lbl { font-size: 0.66rem; }
 
     .day-track-grid {
       margin: 0.15rem 0 0.1rem;
@@ -475,6 +516,7 @@
     <span class="saved-indicator" id="savedIndicator"></span>
   </div>
 
+  <div class="week-summary" id="weekSummary" hidden></div>
   <div class="days" id="days"></div>
 </div>
 
@@ -688,6 +730,10 @@ const T = {
     themePlaceholder: 'e.g. Park day',
     planLabel: 'Plan',
     planPlaceholder: "What's happening that day...",
+    actualHoursLabel: 'Hours worked',
+    weekScheduledLabel: 'Scheduled',
+    weekLoggedLabel: 'Logged',
+    loggedSuffix: 'logged',
     saving: 'Saving…',
     saved: 'Saved',
     shareCopied: 'Share link copied',
@@ -739,6 +785,10 @@ const T = {
     themePlaceholder: 'p. ej. Día de parque',
     planLabel: 'Plan',
     planPlaceholder: 'Lo que va a pasar ese día...',
+    actualHoursLabel: 'Horas trabajadas',
+    weekScheduledLabel: 'Programado',
+    weekLoggedLabel: 'Registrado',
+    loggedSuffix: 'registrado',
     saving: 'Guardando…',
     saved: 'Guardado',
     shareCopied: 'Enlace copiado',
@@ -766,7 +816,7 @@ let saveTimer = null;
 let lastSavedAt = null;
 
 function emptyDay() {
-  return { title: '', plan: '', start: '', end: '', startBuffer: 0, endBuffer: 0 };
+  return { title: '', plan: '', start: '', end: '', startBuffer: 0, endBuffer: 0, actualHours: '' };
 }
 
 function hhmmToMinutes(hhmm) {
@@ -804,8 +854,33 @@ function normalizeDay(d) {
     start: d.start || '',
     end: d.end || '',
     startBuffer,
-    endBuffer
+    endBuffer,
+    actualHours: (d.actualHours === 0 || d.actualHours) ? String(d.actualHours) : ''
   };
+}
+
+function estimatedMinutes(day) {
+  const s = hhmmToMinutes(day.start);
+  const e = hhmmToMinutes(day.end);
+  if (s === null || e === null || e <= s) return 0;
+  return e - s;
+}
+
+function fmtHoursDecimal(h) {
+  const n = Number(h);
+  if (!Number.isFinite(n) || n < 0) return '';
+  return n.toFixed(2).replace(/\.?0+$/, '') + 'h';
+}
+
+function estimatedHoursDisplay(day) {
+  const m = estimatedMinutes(day);
+  return m > 0 ? fmtHoursDecimal(m / 60) : '';
+}
+
+function actualHoursDisplay(day) {
+  if (day.actualHours === '' || day.actualHours == null) return '';
+  const v = parseFloat(day.actualHours);
+  return Number.isFinite(v) && v >= 0 ? fmtHoursDecimal(v) : '';
 }
 
 function bufferOptionsHtml(selected) {
@@ -903,6 +978,16 @@ function fmtDayDateShort(iso, offset) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${m}/${day}`;
+}
+
+function dayHoursInfoHtml(day) {
+  const est = estimatedHoursDisplay(day);
+  const actual = actualHoursDisplay(day);
+  if (!est && !actual) return '';
+  let parts = [];
+  if (est) parts.push(`<span class="est">${escapeHtml(est)}</span>`);
+  if (actual) parts.push(`<span class="actual">${escapeHtml(actual)} ${escapeHtml(t('loggedSuffix'))}</span>`);
+  return `<div class="day-hours-row">${parts.join(' <span class="sep">·</span> ')}</div>`;
 }
 
 function dayTimesInlineHtml(day) {
@@ -1042,9 +1127,42 @@ function dayTimelineHtml(day, dayName, dateLabel) {
   </div>`;
 }
 
+function renderWeekSummary() {
+  const el = document.getElementById('weekSummary');
+  let estMinutes = 0;
+  let actualTotal = 0;
+  let anyActual = false;
+  for (const day of state.days) {
+    estMinutes += estimatedMinutes(day);
+    if (day.actualHours !== '' && day.actualHours != null) {
+      const v = parseFloat(day.actualHours);
+      if (Number.isFinite(v) && v >= 0) {
+        actualTotal += v;
+        anyActual = true;
+      }
+    }
+  }
+  const estHours = estMinutes / 60;
+  let parts = [];
+  if (estHours > 0) {
+    parts.push(`<span class="lbl">${escapeHtml(t('weekScheduledLabel'))}</span> <span class="est">${escapeHtml(fmtHoursDecimal(estHours))}</span>`);
+  }
+  if (anyActual) {
+    parts.push(`<span class="lbl">${escapeHtml(t('weekLoggedLabel'))}</span> <span class="actual">${escapeHtml(fmtHoursDecimal(actualTotal))}</span>`);
+  }
+  if (parts.length === 0) {
+    el.innerHTML = '';
+    el.hidden = true;
+    return;
+  }
+  el.innerHTML = parts.join(' <span class="sep">·</span> ');
+  el.hidden = false;
+}
+
 function render() {
   document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
   document.getElementById('weekStart').value = state.weekStart;
+  renderWeekSummary();
 
   const todayIso = todayIsoLocal();
   const days = document.getElementById('days');
@@ -1067,6 +1185,7 @@ function render() {
       <div class="readonly">
         ${dayTimelineHtml(day, dayNameShort, dateLabel)}
         <div class="day-times-row">${dayTimesInlineHtml(day)}</div>
+        ${dayHoursInfoHtml(day)}
         ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
@@ -1097,6 +1216,14 @@ function render() {
         <div class="field">
           <label>${escapeHtml(t('planLabel'))}</label>
           <textarea data-day="${i}" data-field="plan" placeholder="${escapeHtml(t('planPlaceholder'))}">${escapeHtml(day.plan)}</textarea>
+        </div>
+        <div class="field">
+          <label>${escapeHtml(t('actualHoursLabel'))}</label>
+          <input type="number" min="0" step="0.25" inputmode="decimal"
+            class="hours-input"
+            data-day="${i}" data-field="actualHours"
+            value="${escapeHtml(day.actualHours)}"
+            placeholder="${escapeHtml(estimatedHoursDisplay(day) || '')}">
         </div>
         <div class="day-actions">
           <button type="button" class="clear-day-btn" data-clear-day="${i}">${escapeHtml(t('clearDay'))}</button>
