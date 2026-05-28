@@ -362,6 +362,55 @@
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
     width: 100%; max-width: 360px;
   }
+  .modal-card.help-card {
+    max-width: 440px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .help-section {
+    margin-bottom: 1rem;
+  }
+  .help-section:last-of-type { margin-bottom: 0.6rem; }
+  .help-section h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 0 0 0.3rem;
+    font-weight: 700;
+  }
+  .help-section p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .help-bar-example {
+    position: relative;
+    height: 14px;
+    width: 220px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.45rem 0 0.5rem;
+  }
+  .help-bar-example .help-bar {
+    position: absolute; top: 0; bottom: 0;
+    left: 30%; width: 40%;
+    background: var(--accent);
+  }
+  .help-bar-example .help-buf {
+    position: absolute; top: 0; bottom: 0;
+    background: var(--accent-blue); opacity: 0.45;
+  }
+  .help-bar-example .help-buf-left  { left: 18%;  width: 12%; }
+  .help-bar-example .help-buf-right { left: 70%;  width: 12%; }
+  .help-btn {
+    padding: 0.3rem 0.6rem !important;
+    font-weight: 700;
+    line-height: 1;
+  }
   .modal-card h2 {
     margin: 0 0 0.9rem; font-size: 1rem;
     text-transform: uppercase; letter-spacing: 0.06em;
@@ -498,6 +547,7 @@
         <button id="langBtn" class="lang-toggle" type="button" data-i18n-aria-label="toggleLanguage" aria-label="Toggle language">
           <span data-lang="en">EN</span><span data-lang="es">ES</span>
         </button>
+        <button id="helpBtn" class="help-btn" type="button" data-i18n-aria-label="help" aria-label="How to read this">?</button>
         <button id="shareBtn" data-i18n="share">Share</button>
         <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
       </div>
@@ -563,6 +613,45 @@
       <button id="settingsResetBtn" type="button" data-i18n="reset">Reset</button>
       <button id="settingsCancelBtn" type="button" data-modal-close data-i18n="cancel">Cancel</button>
       <button id="settingsSaveBtn" type="button" class="primary" data-i18n="save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-card help-card" role="dialog" aria-labelledby="helpHeading">
+    <h2 id="helpHeading" data-i18n="helpTitle">How to read this</h2>
+    <div class="help-section">
+      <h3 data-i18n="helpEachDayTitle">Each day</h3>
+      <p data-i18n="helpEachDayBody"></p>
+    </div>
+    <div class="help-section">
+      <h3 data-i18n="helpBarTitle">Reading the bar</h3>
+      <div class="help-bar-example" aria-hidden="true">
+        <span class="help-buf help-buf-left"></span>
+        <span class="help-bar"></span>
+        <span class="help-buf help-buf-right"></span>
+      </div>
+      <p data-i18n="helpBarBody"></p>
+    </div>
+    <div class="help-section">
+      <h3 data-i18n="helpRangeTitle">Hours range</h3>
+      <p data-i18n="helpRangeBody"></p>
+    </div>
+    <div class="help-section">
+      <h3 data-i18n="helpTodayTitle">Today's day</h3>
+      <p data-i18n="helpTodayBody"></p>
+    </div>
+    <div class="help-section">
+      <h3 data-i18n="helpEditTitle">Editing a day</h3>
+      <p data-i18n="helpEditBody"></p>
+    </div>
+    <div class="help-section">
+      <h3 data-i18n="helpSettingsTitle">Settings</h3>
+      <p data-i18n="helpSettingsBody"></p>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="primary" data-modal-close data-i18n="close">Close</button>
     </div>
   </div>
 </div>
@@ -739,6 +828,21 @@ const T = {
     weekScheduledLabel: 'Scheduled',
     weekLoggedLabel: 'Logged',
     loggedSuffix: 'logged',
+    help: 'How to read this',
+    helpTitle: 'How to read this',
+    helpEachDayTitle: 'Each day',
+    helpEachDayBody: "Each day shows a horizontal bar with the work hours, then the exact times listed below it.",
+    helpBarTitle: 'Reading the bar',
+    helpBarBody: "The solid section is the scheduled work time. The faded ends are buffer time — flexibility on when you might arrive early or stay late.",
+    helpRangeTitle: 'Hours range',
+    helpRangeBody: "A range like '9.5–10.25h' means at least 9.5 hours of work, up to 10.25 hours if all the buffer time is used. The week total at the top adds these up across all 7 days.",
+    helpTodayTitle: "Today's day",
+    helpTodayBody: "The current day stands out with a brighter red line on the left edge and a soft background tint.",
+    helpEditTitle: 'Editing a day',
+    helpEditBody: "Tap 'Edit' at the top right, change the times in the dropdowns, log how many hours were actually worked, then tap 'Done' to save.",
+    helpSettingsTitle: 'Settings',
+    helpSettingsBody: "In edit mode, the 'Settings' button lets you change the color theme, light/dark mode, and the time ranges that appear in the dropdowns.",
+    close: 'Close',
     saving: 'Saving…',
     saved: 'Saved',
     shareCopied: 'Share link copied',
@@ -794,6 +898,21 @@ const T = {
     weekScheduledLabel: 'Programado',
     weekLoggedLabel: 'Registrado',
     loggedSuffix: 'registrado',
+    help: 'Cómo leer esto',
+    helpTitle: 'Cómo leer esto',
+    helpEachDayTitle: 'Cada día',
+    helpEachDayBody: "Cada día muestra una barra horizontal con las horas de trabajo y, debajo, las horas exactas.",
+    helpBarTitle: 'Cómo leer la barra',
+    helpBarBody: "La parte sólida es el tiempo de trabajo programado. Los extremos atenuados son tiempo de margen — flexibilidad para llegar antes o quedarse después.",
+    helpRangeTitle: 'Rango de horas',
+    helpRangeBody: "Un rango como '9.5–10.25h' significa al menos 9.5 horas de trabajo, hasta 10.25 horas si se usa todo el margen. El total semanal arriba suma estos valores de los 7 días.",
+    helpTodayTitle: 'El día de hoy',
+    helpTodayBody: "El día actual se destaca con una línea roja más brillante a la izquierda y un fondo ligeramente tintado.",
+    helpEditTitle: 'Editar un día',
+    helpEditBody: "Toca 'Editar' arriba a la derecha, cambia las horas en los menús, registra cuántas horas se trabajaron realmente y toca 'Listo' para guardar.",
+    helpSettingsTitle: 'Ajustes',
+    helpSettingsBody: "En modo edición, el botón 'Ajustes' permite cambiar el tema de color, modo claro/oscuro y los rangos de hora disponibles en los menús.",
+    close: 'Cerrar',
     saving: 'Guardando…',
     saved: 'Guardado',
     shareCopied: 'Enlace copiado',
@@ -1525,6 +1644,19 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
   } else {
     window.prompt(t('sharePrompt'), url);
   }
+});
+
+// --- Help modal ---
+
+const helpModal = document.getElementById('helpModal');
+document.getElementById('helpBtn').addEventListener('click', () => {
+  helpModal.hidden = false;
+});
+helpModal.addEventListener('click', e => {
+  if (e.target.closest('[data-modal-close]')) helpModal.hidden = true;
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !helpModal.hidden) helpModal.hidden = true;
 });
 
 // --- Settings modal ---
