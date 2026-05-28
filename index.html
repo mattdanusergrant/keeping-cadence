@@ -871,15 +871,34 @@ function estimatedMinutes(day) {
   return e - s;
 }
 
+function fmtHoursNumber(h) {
+  const n = Number(h);
+  if (!Number.isFinite(n) || n < 0) return '0';
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+
 function fmtHoursDecimal(h) {
   const n = Number(h);
   if (!Number.isFinite(n) || n < 0) return '';
-  return n.toFixed(2).replace(/\.?0+$/, '') + 'h';
+  return fmtHoursNumber(n) + 'h';
+}
+
+function fmtHoursRange(minMinutes, maxMinutes) {
+  if (minMinutes <= 0 && maxMinutes <= 0) return '';
+  if (maxMinutes === minMinutes) return fmtHoursDecimal(minMinutes / 60);
+  return `${fmtHoursNumber(minMinutes / 60)}–${fmtHoursNumber(maxMinutes / 60)}h`;
+}
+
+function maxMinutesWithBuffers(day) {
+  const baseMinutes = estimatedMinutes(day);
+  if (baseMinutes <= 0) return 0;
+  const sBuf = Number(day.startBuffer) || 0;
+  const eBuf = Number(day.endBuffer) || 0;
+  return baseMinutes + sBuf + eBuf;
 }
 
 function estimatedHoursDisplay(day) {
-  const m = estimatedMinutes(day);
-  return m > 0 ? fmtHoursDecimal(m / 60) : '';
+  return fmtHoursRange(estimatedMinutes(day), maxMinutesWithBuffers(day));
 }
 
 function actualHoursDisplay(day) {
@@ -1140,11 +1159,13 @@ function dayTimelineHtml(day, dayName, dateLabel) {
 
 function renderWeekSummary() {
   const el = document.getElementById('weekSummary');
-  let estMinutes = 0;
+  let estMinMinutes = 0;
+  let estMaxMinutes = 0;
   let actualTotal = 0;
   let anyActual = false;
   for (const day of state.days) {
-    estMinutes += estimatedMinutes(day);
+    estMinMinutes += estimatedMinutes(day);
+    estMaxMinutes += maxMinutesWithBuffers(day);
     if (day.actualHours !== '' && day.actualHours != null) {
       const v = parseFloat(day.actualHours);
       if (Number.isFinite(v) && v >= 0) {
@@ -1153,10 +1174,9 @@ function renderWeekSummary() {
       }
     }
   }
-  const estHours = estMinutes / 60;
   let parts = [];
-  if (estHours > 0) {
-    parts.push(`<span class="lbl">${escapeHtml(t('weekScheduledLabel'))}</span> <span class="est">${escapeHtml(fmtHoursDecimal(estHours))}</span>`);
+  if (estMinMinutes > 0) {
+    parts.push(`<span class="lbl">${escapeHtml(t('weekScheduledLabel'))}</span> <span class="est">${escapeHtml(fmtHoursRange(estMinMinutes, estMaxMinutes))}</span>`);
   }
   if (anyActual) {
     parts.push(`<span class="lbl">${escapeHtml(t('weekLoggedLabel'))}</span> <span class="actual">${escapeHtml(fmtHoursDecimal(actualTotal))}</span>`);
