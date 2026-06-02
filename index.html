@@ -315,6 +315,15 @@
     color: var(--muted); border-radius: 6px; cursor: pointer;
   }
   .day-actions button:hover { border-color: var(--accent); color: var(--ink); }
+  .day-actions .day-action-done {
+    background: var(--accent); color: var(--on-accent);
+    border-color: var(--accent); font-weight: 600;
+    margin-left: auto;
+  }
+  .day-actions .day-action-done:hover {
+    color: var(--on-accent); border-color: var(--accent);
+    filter: brightness(1.05);
+  }
   .day .field > label {
     display: block; font-size: 0.75rem;
     text-transform: uppercase; letter-spacing: 0.05em;
@@ -332,6 +341,13 @@
 
   body.view-mode .editable { display: none; }
   body.edit-mode .readonly { display: none; }
+  body.view-mode .day.editing .editable { display: block; }
+  body.view-mode .day.editing .editable.day-line { display: flex; }
+  body.view-mode .day.editing .readonly { display: none; }
+  body.view-mode .day { cursor: pointer; }
+  body.view-mode .day.editing { cursor: default; }
+  .editing-only { display: none; }
+  body.view-mode .day.editing .editing-only { display: inline-flex; }
 
   .toast {
     position: fixed; bottom: 1.25rem; left: 50%;
@@ -938,6 +954,7 @@ let state = freshState();
 let settings = loadSettings();
 let saveTimer = null;
 let lastSavedAt = null;
+let editingDayIndex = null;
 
 function emptyDay() {
   return { title: '', plan: '', start: '', end: '', startBuffer: 0, endBuffer: 0, actualHours: '' };
@@ -1320,7 +1337,9 @@ function render() {
   state.days.forEach((day, i) => {
     const dayIso = addDays(state.weekStart, i);
     const el = document.createElement('div');
-    el.className = 'day' + (dayIso === todayIso ? ' today' : '');
+    el.className = 'day'
+      + (dayIso === todayIso ? ' today' : '')
+      + (editingDayIndex === i ? ' editing' : '');
 
     const dateLabel = fmtDayDateShort(state.weekStart, i);
     const dayNameShort = fmtDayNameShort(state.weekStart, i);
@@ -1378,6 +1397,7 @@ function render() {
         <div class="day-actions">
           <button type="button" class="clear-day-btn" data-clear-day="${i}">${escapeHtml(t('clearDay'))}</button>
           ${i < 6 ? `<button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>` : ''}
+          <button type="button" class="day-action-done editing-only primary" data-done-day="${i}">${escapeHtml(t('done'))}</button>
         </div>
       </div>
     `;
@@ -1527,14 +1547,20 @@ document.getElementById('toggleMode').addEventListener('click', () => {
     document.getElementById('toggleMode').textContent = t('edit');
     render();
   } else {
+    if (editingDayIndex !== null) {
+      syncFromInputs();
+      editingDayIndex = null;
+    }
     document.body.classList.replace('view-mode', 'edit-mode');
     document.getElementById('toggleMode').textContent = t('done');
+    render();
   }
 });
 
 document.getElementById('weekStart').addEventListener('change', e => {
   syncFromInputs();
   state.weekStart = e.target.value;
+  editingDayIndex = null;
   render();
   scheduleSave();
 });
@@ -1573,7 +1599,32 @@ document.getElementById('days').addEventListener('click', e => {
     render();
     scheduleSave();
     showToast(t('dayCleared'));
+    return;
   }
+  const doneBtn = e.target.closest('.day-action-done');
+  if (doneBtn) {
+    if (editingDayIndex !== null) {
+      syncFromInputs();
+      scheduleSave();
+      editingDayIndex = null;
+      render();
+    }
+    return;
+  }
+
+  // Card-level click: open this day for editing (view-mode only).
+  if (document.body.classList.contains('edit-mode')) return;
+  if (e.target.closest('select, input, textarea, button, label')) return;
+  const dayEl = e.target.closest('.day');
+  if (!dayEl) return;
+  const idx = Array.from(dayEl.parentElement.children).indexOf(dayEl);
+  if (editingDayIndex === idx) return;
+  if (editingDayIndex !== null) {
+    syncFromInputs();
+    scheduleSave();
+  }
+  editingDayIndex = idx;
+  render();
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
@@ -1603,6 +1654,7 @@ document.getElementById('importFile').addEventListener('change', e => {
         weekStart: data.weekStart,
         days: data.days.map(normalizeDay)
       };
+      editingDayIndex = null;
       render();
       scheduleSave();
     } catch (err) {
@@ -1619,6 +1671,7 @@ document.getElementById('newWeekBtn').addEventListener('click', () => {
     d.title.trim() || d.plan.trim() || d.start || d.end || d.startBuffer || d.endBuffer);
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = freshState(addDays(state.weekStart, 7));
+  editingDayIndex = null;
   render();
   scheduleSave();
 });
@@ -1630,6 +1683,7 @@ document.getElementById('duplicateBtn').addEventListener('click', () => {
     weekStart: addDays(state.weekStart, 7),
     days: state.days.map(d => ({ ...d }))
   };
+  editingDayIndex = null;
   render();
   scheduleSave();
   showToast(t('duplicated'));
