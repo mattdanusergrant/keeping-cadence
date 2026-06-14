@@ -275,6 +275,45 @@
   }
   .day-hours-row .actual { color: var(--accent); font-weight: 600; }
 
+  .schedule-tabs {
+    display: flex; gap: 0.35rem; flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+  .schedule-tab {
+    font: inherit; font-size: 0.85rem;
+    padding: 0.35rem 0.7rem;
+    background: var(--bg); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 0.35rem;
+  }
+  .schedule-tab .swatch {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+  }
+  .schedule-tab:hover { border-color: var(--accent); }
+  .schedule-tab.active {
+    background: var(--accent); color: var(--on-accent);
+    border-color: var(--accent); font-weight: 600;
+  }
+  .schedule-tab.active .swatch { box-shadow: 0 0 0 1px rgba(255,255,255,0.4); }
+  .schedule-tab.add { font-weight: 700; }
+  .schedule-tab.master { font-style: italic; }
+
+  body.view-mode .day.master-day { cursor: default; }
+  .master-day .master-row {
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 0.4rem;
+    align-items: center;
+    margin: 0.2rem 0;
+    font-size: 0.85rem;
+  }
+  .master-row-label { font-weight: 600; }
+  .master-row-times { font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+  .master-track { height: 10px; }
+
   .week-summary {
     margin-bottom: 0.5rem;
     padding: 0.4rem 0.6rem;
@@ -506,6 +545,8 @@
       margin-bottom: 0.35rem;
       font-size: 0.8rem;
     }
+    .schedule-tabs { margin-bottom: 0.35rem; gap: 0.25rem; }
+    .schedule-tab { padding: 0.28rem 0.6rem; font-size: 0.8rem; }
     .week-summary .lbl { font-size: 0.66rem; }
 
     .day-track-grid {
@@ -587,6 +628,7 @@
     <span class="saved-indicator" id="savedIndicator"></span>
   </div>
 
+  <div class="schedule-tabs" id="scheduleTabs"></div>
   <div class="week-summary" id="weekSummary" hidden></div>
   <div class="days" id="days"></div>
 </div>
@@ -842,6 +884,10 @@ const T = {
     planPlaceholder: "What's happening that day...",
     actualHoursLabel: 'Hours worked',
     weekScheduledLabel: 'Scheduled',
+    masterView: 'Master',
+    addNanny: '+',
+    addNannyPrompt: 'Name for the new schedule:',
+    nannyN: 'Nanny {n}',
     weekLoggedLabel: 'Logged',
     loggedSuffix: 'logged',
     help: 'How to read this',
@@ -912,6 +958,10 @@ const T = {
     planPlaceholder: 'Lo que va a pasar ese día...',
     actualHoursLabel: 'Horas trabajadas',
     weekScheduledLabel: 'Programado',
+    masterView: 'Maestro',
+    addNanny: '+',
+    addNannyPrompt: 'Nombre del nuevo horario:',
+    nannyN: 'Niñera {n}',
     weekLoggedLabel: 'Registrado',
     loggedSuffix: 'registrado',
     help: 'Cómo leer esto',
@@ -1055,11 +1105,79 @@ function bufferOptionsHtml(selected) {
   return html;
 }
 
-function freshState(startIso) {
+const SCHEDULE_COLOR_VARS = ['accent', 'accent-blue', 'accent-gold', 'warning'];
+
+function newScheduleId() {
+  return 'sched-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+}
+
+function defaultScheduleName(index) {
+  return (t('nannyN') || 'Nanny {n}').replace('{n}', index + 1);
+}
+
+function colorVarForIndex(i) {
+  return SCHEDULE_COLOR_VARS[i % SCHEDULE_COLOR_VARS.length];
+}
+
+function newSchedule(name, colorVar) {
   return {
-    weekStart: startIso || isoMonday(new Date()),
+    id: newScheduleId(),
+    name: name || 'Nanny',
+    colorVar: colorVar || 'accent',
     days: Array.from({ length: 7 }, () => emptyDay())
   };
+}
+
+function freshState(startIso) {
+  const s1 = newSchedule('Nanny 1', 'accent');
+  return {
+    weekStart: startIso || isoMonday(new Date()),
+    schedules: [s1],
+    activeId: s1.id
+  };
+}
+
+function migrateState(data) {
+  if (!data || !data.weekStart) return null;
+  if (Array.isArray(data.schedules) && data.schedules.length > 0) {
+    const schedules = data.schedules.map((s, i) => ({
+      id: s.id || newScheduleId(),
+      name: s.name || ('Nanny ' + (i + 1)),
+      colorVar: s.colorVar || colorVarForIndex(i),
+      days: Array.isArray(s.days) && s.days.length === 7
+        ? s.days.map(normalizeDay)
+        : Array.from({ length: 7 }, () => emptyDay())
+    }));
+    const activeId = data.activeId && (data.activeId === 'master' || schedules.find(s => s.id === data.activeId))
+      ? data.activeId
+      : schedules[0].id;
+    return { weekStart: data.weekStart, schedules, activeId };
+  }
+  if (Array.isArray(data.days) && data.days.length === 7) {
+    const s = {
+      id: newScheduleId(),
+      name: 'Nanny 1',
+      colorVar: 'accent',
+      days: data.days.map(normalizeDay)
+    };
+    return { weekStart: data.weekStart, schedules: [s], activeId: s.id };
+  }
+  return null;
+}
+
+function activeSchedule() {
+  if (!state || !state.schedules) return null;
+  if (state.activeId === 'master') return null;
+  return state.schedules.find(s => s.id === state.activeId) || state.schedules[0] || null;
+}
+
+function isMasterView() {
+  return state && state.activeId === 'master';
+}
+
+function activeDays() {
+  const s = activeSchedule();
+  return s ? s.days : [];
 }
 
 function isoMonday(d) {
@@ -1299,7 +1417,7 @@ function renderWeekSummary() {
   let estMaxMinutes = 0;
   let actualTotal = 0;
   let anyActual = false;
-  for (const day of state.days) {
+  for (const day of activeDays()) {
     estMinMinutes += estimatedMinutes(day);
     estMaxMinutes += maxMinutesWithBuffers(day);
     if (day.actualHours !== '' && day.actualHours != null) {
@@ -1326,15 +1444,97 @@ function renderWeekSummary() {
   el.hidden = false;
 }
 
-function render() {
-  document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
-  document.getElementById('weekStart').value = state.weekStart;
-  renderWeekSummary();
+function renderScheduleTabs() {
+  const el = document.getElementById('scheduleTabs');
+  let html = '';
+  state.schedules.forEach(s => {
+    const active = state.activeId === s.id ? ' active' : '';
+    html += `<button type="button" class="schedule-tab${active}" data-schedule-id="${escapeHtml(s.id)}">`
+      + `<span class="swatch" style="background: var(--${s.colorVar})"></span>`
+      + `<span>${escapeHtml(s.name)}</span></button>`;
+  });
+  if (state.schedules.length > 1) {
+    const active = state.activeId === 'master' ? ' active' : '';
+    html += `<button type="button" class="schedule-tab master${active}" data-schedule-id="master">`
+      + `<span>${escapeHtml(t('masterView'))}</span></button>`;
+  }
+  html += `<button type="button" class="schedule-tab add" id="addScheduleBtn">${escapeHtml(t('addNanny'))}</button>`;
+  el.innerHTML = html;
+}
 
+function renderMasterDays() {
   const todayIso = todayIsoLocal();
   const days = document.getElementById('days');
   days.innerHTML = '';
-  state.days.forEach((day, i) => {
+  for (let i = 0; i < 7; i++) {
+    const dayIso = addDays(state.weekStart, i);
+    const dateLabel = fmtDayDateShort(state.weekStart, i);
+    const dayNameShort = fmtDayNameShort(state.weekStart, i);
+    const el = document.createElement('div');
+    el.className = 'day master-day' + (dayIso === todayIso ? ' today' : '');
+    let rows = '';
+    state.schedules.forEach(sched => {
+      const day = sched.days[i];
+      rows += `<div class="master-row">`
+        + `<span class="master-row-label" style="color: var(--${sched.colorVar})">${escapeHtml(sched.name)}</span>`
+        + masterBarHtml(day, sched.colorVar)
+        + `<span class="master-row-times">${dayTimesInlineHtml(day)}</span>`
+        + `</div>`;
+    });
+    el.innerHTML = `
+      <div class="day-line"><span class="day-name">${escapeHtml(dayNameShort)}</span> <span class="day-date">${escapeHtml(dateLabel)}</span></div>
+      ${rows}
+    `;
+    days.appendChild(el);
+  }
+}
+
+function masterBarHtml(day, colorVar) {
+  const axisMin = hhmmToMinutes(settings.startMin);
+  const axisMax = hhmmToMinutes(settings.endMax);
+  if (axisMin === null || axisMax === null || axisMax <= axisMin) return '<div class="day-track master-track"></div>';
+  const range = axisMax - axisMin;
+  let bars = '';
+  const sMin = hhmmToMinutes(day.start);
+  const eMin = hhmmToMinutes(day.end);
+  if (sMin !== null && eMin !== null && eMin > sMin) {
+    const sClamped = clamp(sMin, axisMin, axisMax);
+    const eClamped = clamp(eMin, axisMin, axisMax);
+    const left = ((sClamped - axisMin) / range) * 100;
+    const width = ((eClamped - sClamped) / range) * 100;
+    if (day.startBuffer) {
+      const bufStart = clamp(sMin - day.startBuffer, axisMin, axisMax);
+      const bufLeft = ((bufStart - axisMin) / range) * 100;
+      const bufWidth = ((sClamped - bufStart) / range) * 100;
+      if (bufWidth > 0) bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%;background:var(--${colorVar})"></div>`;
+    }
+    if (day.endBuffer) {
+      const bufEnd = clamp(eMin + day.endBuffer, axisMin, axisMax);
+      const bufLeft = ((eClamped - axisMin) / range) * 100;
+      const bufWidth = ((bufEnd - eClamped) / range) * 100;
+      if (bufWidth > 0) bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%;background:var(--${colorVar})"></div>`;
+    }
+    bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:var(--${colorVar})"></div>`;
+  }
+  return `<div class="day-track master-track">${bars}</div>`;
+}
+
+function render() {
+  document.getElementById('weekLabel').textContent = fmtWeekLabel(state.weekStart);
+  document.getElementById('weekStart').value = state.weekStart;
+  renderScheduleTabs();
+
+  if (isMasterView()) {
+    document.getElementById('weekSummary').hidden = true;
+    renderMasterDays();
+    return;
+  }
+
+  renderWeekSummary();
+  const todayIso = todayIsoLocal();
+  const days = document.getElementById('days');
+  days.innerHTML = '';
+  activeDays().forEach((day, i) => {
     const dayIso = addDays(state.weekStart, i);
     const el = document.createElement('div');
     el.className = 'day'
@@ -1423,9 +1623,11 @@ function coerceFieldValue(field, value) {
 }
 
 function syncFromInputs() {
+  const days = activeDays();
   document.querySelectorAll('[data-day]').forEach(el => {
     const field = el.dataset.field;
-    state.days[+el.dataset.day][field] = coerceFieldValue(field, el.value);
+    const idx = +el.dataset.day;
+    if (days[idx]) days[idx][field] = coerceFieldValue(field, el.value);
   });
 }
 
@@ -1472,12 +1674,10 @@ function loadDraft() {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
+    const migrated = migrateState(data);
+    if (!migrated) return null;
     lastSavedAt = localStorage.getItem(SAVED_AT_KEY);
-    return {
-      weekStart: data.weekStart,
-      days: data.days.map(normalizeDay)
-    };
+    return migrated;
   } catch (e) {
     return null;
   }
@@ -1498,11 +1698,7 @@ function decodeStateFromHash(hash) {
     const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
     const json = decodeURIComponent(escape(atob(padded)));
     const data = JSON.parse(json);
-    if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) return null;
-    return {
-      weekStart: data.weekStart,
-      days: data.days.map(normalizeDay)
-    };
+    return migrateState(data);
   } catch (e) {
     return null;
   }
@@ -1535,11 +1731,41 @@ function setLang(newLang) {
 
 // --- Event wiring ---
 
+document.getElementById('scheduleTabs').addEventListener('click', e => {
+  const tab = e.target.closest('[data-schedule-id]');
+  const addBtn = e.target.closest('#addScheduleBtn');
+  if (addBtn) {
+    syncFromInputs();
+    scheduleSave();
+    const idx = state.schedules.length;
+    const defaultName = defaultScheduleName(idx);
+    const name = (window.prompt(t('addNannyPrompt'), defaultName) || '').trim() || defaultName;
+    const sched = newSchedule(name, colorVarForIndex(idx));
+    state.schedules.push(sched);
+    state.activeId = sched.id;
+    editingDayIndex = null;
+    render();
+    scheduleSave();
+    return;
+  }
+  if (tab) {
+    const id = tab.dataset.scheduleId;
+    if (state.activeId === id) return;
+    syncFromInputs();
+    scheduleSave();
+    state.activeId = id;
+    editingDayIndex = null;
+    render();
+    scheduleSave();
+  }
+});
+
 document.getElementById('langBtn').addEventListener('click', () => {
   setLang(lang === 'en' ? 'es' : 'en');
 });
 
 document.getElementById('toggleMode').addEventListener('click', () => {
+  if (isMasterView()) return;
   const isEdit = document.body.classList.contains('edit-mode');
   if (isEdit) {
     syncFromInputs();
@@ -1569,7 +1795,9 @@ document.getElementById('days').addEventListener('input', e => {
   const target = e.target;
   if (target.dataset && target.dataset.day !== undefined) {
     const field = target.dataset.field;
-    state.days[+target.dataset.day][field] = coerceFieldValue(field, target.value);
+    const days = activeDays();
+    const idx = +target.dataset.day;
+    if (days[idx]) days[idx][field] = coerceFieldValue(field, target.value);
     scheduleSave();
   }
 });
@@ -1580,7 +1808,8 @@ document.getElementById('days').addEventListener('click', e => {
     const from = +copyBtn.dataset.copyFrom;
     if (from < 0 || from > 5) return;
     syncFromInputs();
-    state.days[from + 1] = { ...state.days[from] };
+    const days = activeDays();
+    days[from + 1] = { ...days[from] };
     render();
     scheduleSave();
     showToast(t('copiedToNext'));
@@ -1591,11 +1820,12 @@ document.getElementById('days').addEventListener('click', e => {
     const idx = +clearBtn.dataset.clearDay;
     if (idx < 0 || idx > 6) return;
     syncFromInputs();
-    const d = state.days[idx];
+    const days = activeDays();
+    const d = days[idx];
     const hasContent = d.title.trim() || d.plan.trim() ||
       d.start || d.end || d.startBuffer || d.endBuffer;
     if (hasContent && !confirm(t('confirmClearDay'))) return;
-    state.days[idx] = emptyDay();
+    days[idx] = emptyDay();
     render();
     scheduleSave();
     showToast(t('dayCleared'));
@@ -1613,6 +1843,7 @@ document.getElementById('days').addEventListener('click', e => {
   }
 
   // Card-level click: open this day for editing (view-mode only).
+  if (isMasterView()) return;
   if (document.body.classList.contains('edit-mode')) return;
   if (e.target.closest('select, input, textarea, button, label')) return;
   const dayEl = e.target.closest('.day');
@@ -1647,13 +1878,11 @@ document.getElementById('importFile').addEventListener('change', e => {
   reader.onload = ev => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!data.weekStart || !Array.isArray(data.days) || data.days.length !== 7) {
+      const migrated = migrateState(data);
+      if (!migrated) {
         throw new Error(t('invalidFile'));
       }
-      state = {
-        weekStart: data.weekStart,
-        days: data.days.map(normalizeDay)
-      };
+      state = migrated;
       editingDayIndex = null;
       render();
       scheduleSave();
@@ -1667,10 +1896,17 @@ document.getElementById('importFile').addEventListener('change', e => {
 
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
-  const hasContent = state.days.some(d =>
-    d.title.trim() || d.plan.trim() || d.start || d.end || d.startBuffer || d.endBuffer);
+  const hasContent = state.schedules.some(sched => sched.days.some(d =>
+    d.title.trim() || d.plan.trim() || d.start || d.end || d.startBuffer || d.endBuffer));
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
-  state = freshState(addDays(state.weekStart, 7));
+  state = {
+    weekStart: addDays(state.weekStart, 7),
+    schedules: state.schedules.map(s => ({
+      id: s.id, name: s.name, colorVar: s.colorVar,
+      days: Array.from({ length: 7 }, () => emptyDay())
+    })),
+    activeId: state.activeId
+  };
   editingDayIndex = null;
   render();
   scheduleSave();
@@ -1681,7 +1917,11 @@ document.getElementById('duplicateBtn').addEventListener('click', () => {
   syncFromInputs();
   state = {
     weekStart: addDays(state.weekStart, 7),
-    days: state.days.map(d => ({ ...d }))
+    schedules: state.schedules.map(s => ({
+      id: s.id, name: s.name, colorVar: s.colorVar,
+      days: s.days.map(d => ({ ...d }))
+    })),
+    activeId: state.activeId
   };
   editingDayIndex = null;
   render();
