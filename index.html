@@ -884,10 +884,10 @@ const T = {
     planPlaceholder: "What's happening that day...",
     actualHoursLabel: 'Hours worked',
     weekScheduledLabel: 'Scheduled',
-    masterView: 'Master',
-    addNanny: '+',
-    addNannyPrompt: 'Name for the new schedule:',
-    nannyN: 'Nanny {n}',
+    masterView: 'All',
+    addScheduleBtn: '+',
+    scheduleN: 'Schedule {n}',
+    addSchedulePrompt: 'Name for the new schedule:',
     weekLoggedLabel: 'Logged',
     loggedSuffix: 'logged',
     help: 'How to read this',
@@ -958,10 +958,10 @@ const T = {
     planPlaceholder: 'Lo que va a pasar ese día...',
     actualHoursLabel: 'Horas trabajadas',
     weekScheduledLabel: 'Programado',
-    masterView: 'Maestro',
-    addNanny: '+',
-    addNannyPrompt: 'Nombre del nuevo horario:',
-    nannyN: 'Niñera {n}',
+    masterView: 'Todos',
+    addScheduleBtn: '+',
+    scheduleN: 'Horario {n}',
+    addSchedulePrompt: 'Nombre del nuevo horario:',
     weekLoggedLabel: 'Registrado',
     loggedSuffix: 'registrado',
     help: 'Cómo leer esto',
@@ -1112,7 +1112,7 @@ function newScheduleId() {
 }
 
 function defaultScheduleName(index) {
-  return (t('nannyN') || 'Nanny {n}').replace('{n}', index + 1);
+  return (t('scheduleN') || 'Schedule {n}').replace('{n}', index + 1);
 }
 
 function colorVarForIndex(i) {
@@ -1122,14 +1122,14 @@ function colorVarForIndex(i) {
 function newSchedule(name, colorVar) {
   return {
     id: newScheduleId(),
-    name: name || 'Nanny',
+    name: name || 'Schedule',
     colorVar: colorVar || 'accent',
     days: Array.from({ length: 7 }, () => emptyDay())
   };
 }
 
 function freshState(startIso) {
-  const s1 = newSchedule('Nanny 1', 'accent');
+  const s1 = newSchedule('Schedule 1', 'accent');
   return {
     weekStart: startIso || isoMonday(new Date()),
     schedules: [s1],
@@ -1142,7 +1142,7 @@ function migrateState(data) {
   if (Array.isArray(data.schedules) && data.schedules.length > 0) {
     const schedules = data.schedules.map((s, i) => ({
       id: s.id || newScheduleId(),
-      name: s.name || ('Nanny ' + (i + 1)),
+      name: s.name || ('Schedule ' + (i + 1)),
       colorVar: s.colorVar || colorVarForIndex(i),
       days: Array.isArray(s.days) && s.days.length === 7
         ? s.days.map(normalizeDay)
@@ -1156,7 +1156,7 @@ function migrateState(data) {
   if (Array.isArray(data.days) && data.days.length === 7) {
     const s = {
       id: newScheduleId(),
-      name: 'Nanny 1',
+      name: 'Schedule 1',
       colorVar: 'accent',
       days: data.days.map(normalizeDay)
     };
@@ -1458,7 +1458,7 @@ function renderScheduleTabs() {
     html += `<button type="button" class="schedule-tab master${active}" data-schedule-id="master">`
       + `<span>${escapeHtml(t('masterView'))}</span></button>`;
   }
-  html += `<button type="button" class="schedule-tab add" id="addScheduleBtn">${escapeHtml(t('addNanny'))}</button>`;
+  html += `<button type="button" class="schedule-tab add" id="addScheduleBtn">${escapeHtml(t('addScheduleBtn'))}</button>`;
   el.innerHTML = html;
 }
 
@@ -1739,7 +1739,7 @@ document.getElementById('scheduleTabs').addEventListener('click', e => {
     scheduleSave();
     const idx = state.schedules.length;
     const defaultName = defaultScheduleName(idx);
-    const name = (window.prompt(t('addNannyPrompt'), defaultName) || '').trim() || defaultName;
+    const name = (window.prompt(t('addSchedulePrompt'), defaultName) || '').trim() || defaultName;
     const sched = newSchedule(name, colorVarForIndex(idx));
     state.schedules.push(sched);
     state.activeId = sched.id;
@@ -1864,7 +1864,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `nanny-schedule-${state.weekStart}.json`;
+  a.download = `schedule-${state.weekStart}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
