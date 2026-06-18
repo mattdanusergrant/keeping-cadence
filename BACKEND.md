@@ -46,7 +46,9 @@ original single-person flow, unchanged.
 ## Setup
 
 ### 1. Neon database
-1. Create a project at <https://neon.tech>.
+1. Create a **dedicated** Neon project for Keeping Cadence at <https://neon.tech> — its
+   own project (not shared with Invisible Ink or other apps). KC uses a direct connection
+   only, so **don't enable the Data API or Neon Auth** on it.
 2. Copy the **pooled** connection string (host contains `-pooler`).
 3. Apply the schema:
    ```bash
