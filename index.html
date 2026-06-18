@@ -605,6 +605,7 @@
           <span data-lang="en">EN</span><span data-lang="es">ES</span>
         </button>
         <button id="helpBtn" class="help-btn" type="button" data-i18n-aria-label="help" aria-label="How to read this">?</button>
+        <button id="accountBtn" type="button" hidden data-i18n="signIn">Sign in</button>
         <button id="shareBtn" data-i18n="share">Share</button>
         <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
       </div>
@@ -634,6 +635,36 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal" id="accountModal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-card" role="dialog" aria-labelledby="accountHeading">
+    <h2 id="accountHeading" data-i18n="accountTitle">Account</h2>
+    <div id="accountSignedOut">
+      <div class="setting-row">
+        <label for="acctEmail" data-i18n="email">Email</label>
+        <input type="email" id="acctEmail" autocomplete="email">
+      </div>
+      <div class="setting-row">
+        <label for="acctPassword" data-i18n="password">Password</label>
+        <input type="password" id="acctPassword" autocomplete="current-password">
+      </div>
+      <p class="account-msg" id="accountMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
+      <div class="modal-actions">
+        <button type="button" data-modal-close data-i18n="cancel">Cancel</button>
+        <button type="button" id="signupBtn" data-i18n="signUp">Sign up</button>
+        <button type="button" id="loginBtn" class="primary" data-i18n="signIn">Sign in</button>
+      </div>
+    </div>
+    <div id="accountSignedIn" hidden>
+      <p><span data-i18n="signedInAs">Signed in as</span> <strong id="accountEmail"></strong></p>
+      <div class="modal-actions">
+        <button type="button" data-modal-close data-i18n="close">Close</button>
+        <button type="button" id="logoutBtn" data-i18n="signOut">Sign out</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="modal" id="settingsModal" hidden>
   <div class="modal-backdrop" data-modal-close></div>
@@ -715,10 +746,27 @@
 </div>
 
 <script>
-const DRAFT_KEY = 'nanny-schedule-draft';
-const SAVED_AT_KEY = 'nanny-schedule-saved-at';
-const LANG_KEY = 'nanny-schedule-lang';
-const SETTINGS_KEY = 'nanny-schedule-settings';
+const DRAFT_KEY = 'keeping-cadence-draft';
+const SAVED_AT_KEY = 'keeping-cadence-saved-at';
+const LANG_KEY = 'keeping-cadence-lang';
+const SETTINGS_KEY = 'keeping-cadence-settings';
+// Preserve data saved under the project's former name (one-time copy).
+try {
+  [['nanny-schedule-draft', DRAFT_KEY], ['nanny-schedule-saved-at', SAVED_AT_KEY],
+   ['nanny-schedule-lang', LANG_KEY], ['nanny-schedule-settings', SETTINGS_KEY]]
+    .forEach(([oldKey, newKey]) => {
+      const v = localStorage.getItem(oldKey);
+      if (v !== null && localStorage.getItem(newKey) === null) localStorage.setItem(newKey, v);
+    });
+} catch (e) {}
+
+// Cloud sync (optional). Flip enabled to true and set apiBase to your deployed
+// API origin (e.g. 'https://keeping-cadence.vercel.app') to turn on accounts
+// and cross-device sync. Left off, the app stays fully local and unchanged.
+const CLOUD = { enabled: false, apiBase: '' };
+const TOKEN_KEY = 'keeping-cadence-token';
+let authUser = null;
+let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   startMin: '07:00', startMax: '15:00',
   endMin: '12:00',  endMax: '20:00',
@@ -849,6 +897,14 @@ const T = {
   en: {
     title: 'Keeping Cadence',
     edit: 'Edit',
+    accountTitle: 'Account',
+    email: 'Email',
+    password: 'Password',
+    signUp: 'Sign up',
+    signIn: 'Sign in',
+    signOut: 'Sign out',
+    signedIn: 'Signed in',
+    signedInAs: 'Signed in as',
     done: 'Done',
     share: 'Share',
     export: 'Export',
@@ -923,6 +979,14 @@ const T = {
   es: {
     title: 'Keeping Cadence',
     edit: 'Editar',
+    accountTitle: 'Cuenta',
+    email: 'Correo',
+    password: 'Contraseña',
+    signUp: 'Registrarse',
+    signIn: 'Iniciar sesión',
+    signOut: 'Cerrar sesión',
+    signedIn: 'Sesión iniciada',
+    signedInAs: 'Sesión iniciada como',
     done: 'Listo',
     share: 'Compartir',
     export: 'Exportar',
@@ -1644,6 +1708,7 @@ function scheduleSave() {
     }
     renderSavedIndicator();
   }, 400);
+  cloudPush();
 }
 
 function loadSettings() {
@@ -2061,6 +2126,118 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   if (settings.mode === 'auto') applyTheme(settings.theme, settings.mode);
 });
 
+// ---- Cloud sync (optional; gated by CLOUD.enabled) ------------------------
+function authToken() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+function setAuthToken(tk) {
+  try { tk ? localStorage.setItem(TOKEN_KEY, tk) : localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+}
+
+async function apiFetch(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  const tk = authToken();
+  if (tk) headers['Authorization'] = 'Bearer ' + tk;
+  const res = await fetch(CLOUD.apiBase + path, Object.assign({}, opts, { headers }));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+
+let cloudTimer = null;
+function cloudPush() {
+  if (!CLOUD.enabled || !authUser) return;
+  if (cloudTimer) clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(async () => {
+    try {
+      const payload = {
+        weekStart: state.weekStart,
+        schedules: state.schedules.map(s => ({ id: s.id, name: s.name, colorVar: s.colorVar, days: s.days })),
+        settings
+      };
+      const res = await apiFetch('/api/state', { method: 'PUT', body: JSON.stringify(payload) });
+      const idMap = {};
+      (res.schedules || []).forEach(m => {
+        const sc = state.schedules.find(x => x.id === m.localId);
+        if (sc && sc.id !== m.id) { idMap[sc.id] = m.id; sc.id = m.id; }
+      });
+      if (state.activeId && idMap[state.activeId]) state.activeId = idMap[state.activeId];
+      if (Object.keys(idMap).length) {
+        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) {}
+      }
+    } catch (e) { /* offline / error: the local draft remains the source of truth */ }
+  }, 1200);
+}
+
+async function cloudPull() {
+  if (!CLOUD.enabled || !authUser) return;
+  const data = await apiFetch('/api/state?week=' + encodeURIComponent(state.weekStart));
+  if (data.schedules && data.schedules.length) {
+    const schedules = data.schedules.map(s => ({
+      id: s.id, name: s.name, colorVar: s.colorVar,
+      days: (data.weeks && data.weeks[s.id]) ? data.weeks[s.id] : Array.from({ length: 7 }, () => emptyDay())
+    }));
+    const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: schedules[0].id });
+    if (migrated) state = migrated;
+  }
+  if (data.settings && typeof data.settings === 'object') {
+    settings = Object.assign({}, settings, data.settings);
+    saveSettings(settings);
+    applyTheme(settings.theme, settings.mode);
+  }
+  render();
+}
+
+function reflectAuth() {
+  const btn = document.getElementById('accountBtn');
+  if (!btn) return;
+  btn.hidden = !CLOUD.enabled;
+  btn.textContent = authUser ? authUser.email : t('signIn');
+  const out = document.getElementById('accountSignedOut');
+  const inn = document.getElementById('accountSignedIn');
+  if (out) out.hidden = !!authUser;
+  if (inn) inn.hidden = !authUser;
+  if (authUser) { const em = document.getElementById('accountEmail'); if (em) em.textContent = authUser.email; }
+}
+
+async function doAuth(action) {
+  const email = document.getElementById('acctEmail').value.trim();
+  const password = document.getElementById('acctPassword').value;
+  const data = await apiFetch('/api/auth?action=' + action, { method: 'POST', body: JSON.stringify({ email, password }) });
+  setAuthToken(data.token);
+  authUser = data.user;
+  await cloudPull();
+  reflectAuth();
+}
+
+async function restoreSession() {
+  if (!CLOUD.enabled || openedFromShare || !authToken()) { reflectAuth(); return; }
+  try { const d = await apiFetch('/api/auth?action=me'); authUser = d.user; await cloudPull(); }
+  catch (e) { setAuthToken(null); authUser = null; }
+  reflectAuth();
+}
+
+function setupCloudUI() {
+  const modal = document.getElementById('accountModal');
+  const btn = document.getElementById('accountBtn');
+  if (!modal || !btn) return;
+  btn.hidden = false;
+  const msg = m => { const el = document.getElementById('accountMsg'); if (el) { el.textContent = m || ''; el.hidden = !m; } };
+  btn.addEventListener('click', () => { reflectAuth(); msg(''); modal.hidden = false; });
+  modal.addEventListener('click', e => { if (e.target.closest('[data-modal-close]')) modal.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    try { msg(''); await doAuth('login'); modal.hidden = true; showToast(t('signedIn')); }
+    catch (e) { msg(e.message); }
+  });
+  document.getElementById('signupBtn').addEventListener('click', async () => {
+    try { msg(''); await doAuth('signup'); modal.hidden = true; showToast(t('signedIn')); }
+    catch (e) { msg(e.message); }
+  });
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    setAuthToken(null); authUser = null; reflectAuth(); modal.hidden = true;
+  });
+  restoreSession();
+}
+
 (function init() {
   applyTheme(settings.theme, settings.mode);
   document.body.classList.add('lang-' + lang);
@@ -2068,6 +2245,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   const fromHash = decodeStateFromHash(location.hash);
   if (fromHash) {
     state = fromHash;
+    openedFromShare = true;
     history.replaceState(null, '', location.pathname + location.search);
     render();
     scheduleSave();
@@ -2081,6 +2259,8 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
   render();
 })();
+
+if (CLOUD.enabled) setupCloudUI();
 </script>
 </body>
 </html>
