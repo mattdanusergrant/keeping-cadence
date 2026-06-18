@@ -1,12 +1,12 @@
 # Keeping Cadence — Backend (Neon + serverless API)
 
 The front-end (`index.html`) runs fully on its own. This backend is an optional
-layer that adds **accounts, cross-device sync, share-by-slug, and Stripe
-subscriptions**.
+layer that adds **accounts (user + manager), teams, cross-device sync,
+share-by-slug, and Stripe subscriptions**.
 
 ```
 Browser (GitHub Pages)  ──HTTPS──>  Serverless API (/api on Vercel)  ──>  Neon Postgres
-        index.html                    auth · state · share · billing         (private)
+        index.html                    auth · state · team · share · billing    (private)
 ```
 
 - The browser holds a signed session token (JWT) and sends it as
@@ -14,14 +14,30 @@ Browser (GitHub Pages)  ──HTTPS──>  Serverless API (/api on Vercel)  ─
 - The API (`/api/*.js`) holds `DATABASE_URL` as a server-side secret and
   enforces all access control in code (so we don't depend on Postgres RLS).
 
+## Accounts & teams
+
+Two account types, both **self-serve** (no app-admin step):
+
+- **Manager** — signs up choosing the manager role, creates schedules, and
+  invites users to their team by email. Sees and edits every team member's
+  schedule (the plan), so the client can overlay them.
+- **User** — signs up as a normal account, accepts a manager's invite, then
+  sees the schedules assigned to them and fills in their **actual hours**.
+
+The split is enforced server-side: the schedule **owner** (a manager, or a solo
+user) edits the plan; the **assigned member** edits only `actualHours` — neither
+can clobber the other. A user with no manager is just a solo account: the
+original single-person flow, unchanged.
+
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `db/schema.sql` | Postgres schema (run once against Neon) |
-| `api/_lib.js` | Shared: Neon client, JWT, scrypt password hashing, CORS |
-| `api/auth.js` | `signup` / `login` / `me` |
-| `api/state.js` | `GET`/`PUT` the signed-in user's schedules, weeks, settings |
+| `db/schema.sql` | Postgres schema (run once against Neon) — accounts, roles, teams, schedules, weeks, billing |
+| `api/_lib.js` | Shared: Neon client, JWT, scrypt password hashing, CORS, `getUser` |
+| `api/auth.js` | `signup` (as user or manager) / `login` / `me` |
+| `api/state.js` | `GET`/`PUT` schedules, weeks, settings — role-aware (owner edits the plan, assigned member edits actual hours) |
+| `api/team.js` | Manager ↔ user teams: invite, accept/decline, list members |
 | `api/share.js` | Anonymous read of a schedule by share slug |
 | `api/billing-checkout.js` | Create a Stripe Checkout subscription session |
 | `api/billing-webhook.js` | Stripe webhook → maintains the `subscriptions` table |
@@ -78,17 +94,25 @@ This backend was authored without a live Neon/Vercel/Stripe to run against, so d
 a first pass:
 - [ ] `POST /api/auth?action=signup` returns `{ user, token }`
 - [ ] With `CLOUD.enabled`, sign up → edit a day → reload on another device → it syncs
+- [ ] Sign up as a **manager**, invite a user's email; that user sees the invite via
+      `GET /api/team?action=invites`, accepts, and appears in `GET /api/team?action=team`
+- [ ] Manager assigns a schedule to the user; the user can set `actualHours` but not the plan
 - [ ] `GET /api/share?slug=…` returns a schedule for a known slug
 - [ ] A Stripe test checkout flips `subscriptions.status` to `active` via the webhook
 
 ## API reference
 | Method & path | Auth | Body / query | Returns |
 |---|---|---|---|
-| `POST /api/auth?action=signup` | — | `{email,password}` | `{user,token}` |
+| `POST /api/auth?action=signup` | — | `{email,password,role?}` | `{user,token}` |
 | `POST /api/auth?action=login` | — | `{email,password}` | `{user,token}` |
-| `GET /api/auth?action=me` | Bearer | — | `{user}` |
-| `GET /api/state?week=YYYY-MM-DD` | Bearer | — | `{schedules,weeks,settings,subscription}` |
-| `PUT /api/state` | Bearer | `{weekStart,schedules,settings}` | `{schedules:[{localId,id,slug}]}` |
+| `GET /api/auth?action=me` | Bearer | — | `{user}` (incl. `role`, `managerId`) |
+| `GET /api/state?week=YYYY-MM-DD` | Bearer | — | `{schedules,weeks,settings,subscription}` — each schedule carries `access` (`plan`\|`actuals`) + `assignedUserId` |
+| `PUT /api/state` | Bearer | `{weekStart,schedules:[{…,assignedUserId?,days}],settings}` | `{schedules:[{localId,id,slug}]}` |
+| `GET /api/team?action=team` | Bearer (manager) | — | `{users:[{id,email}]}` |
+| `POST /api/team?action=invite` | Bearer (manager) | `{email}` | `{ok}` |
+| `GET /api/team?action=invites` | Bearer (user) | — | `{invites:[{id,managerEmail}]}` |
+| `POST /api/team?action=accept` | Bearer (user) | `{inviteId}` | `{ok,managerId}` |
+| `POST /api/team?action=decline` | Bearer (user) | `{inviteId}` | `{ok}` |
 | `GET /api/share?slug=…&from&to` | — | — | `{schedule,weeks}` |
 | `POST /api/billing-checkout` | Bearer | — | `{url}` |
 | `POST /api/billing-webhook` | Stripe sig | raw event | `{received:true}` |

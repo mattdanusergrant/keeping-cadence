@@ -47,6 +47,13 @@ export function getUserId(req) {
   try { return jwt.verify(m[1], process.env.JWT_SECRET).uid; }
   catch { return null; }
 }
+// Like getUserId, but resolves the full account row (id, email, role, managerId).
+export async function getUser(req) {
+  const uid = getUserId(req);
+  if (!uid) return null;
+  const [u] = await sql`select id, email, role, manager_id as "managerId" from users where id = ${uid}`;
+  return u || null;
+}
 
 // --- misc ------------------------------------------------------------------
 export async function readJson(req) {
