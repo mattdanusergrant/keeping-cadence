@@ -521,6 +521,7 @@
     background: var(--accent); color: var(--on-accent); border-color: var(--accent);
   }
   .team-empty { color: var(--muted); font-size: 0.88rem; }
+  .team-onteam { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.2rem; }
   .role-hint { color: var(--muted); font-size: 0.85rem; margin: 0.15rem 0 0.55rem; }
   .plan-recap { margin-bottom: 0.5rem; }
   .plan-recap .day-title { margin-top: 0.2rem; }
@@ -723,7 +724,13 @@
       <div id="teamAssignList" class="team-list"></div>
     </div>
     <div id="teamMember" hidden>
-      <h3 class="team-subhead" data-i18n="pendingInvites">Invitations</h3>
+      <div id="teamLeave" hidden>
+        <p class="team-onteam" data-i18n="onATeam">You're on a team.</p>
+        <div class="modal-actions" style="justify-content:flex-start;margin-top:.2rem">
+          <button type="button" id="leaveTeamBtn" data-i18n="leaveTeam">Leave team</button>
+        </div>
+      </div>
+      <h3 class="team-subhead" id="invitesHead" data-i18n="pendingInvites">Invitations</h3>
       <div id="teamInvitesList" class="team-list"></div>
     </div>
     <p class="account-msg" id="teamMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
@@ -1068,7 +1075,14 @@ const T = {
     decline: 'Decline',
     inviteAccepted: 'Invitation accepted',
     inviteDeclined: 'Invitation declined',
-    actualsOnlyNote: 'Your manager sets the plan; you log the hours you actually work.'
+    actualsOnlyNote: 'Your manager sets the plan; you log the hours you actually work.',
+    removeMember: 'Remove',
+    confirmRemoveMember: 'Remove {email} from your team? Their schedule assignments will be cleared.',
+    memberRemoved: 'Member removed',
+    onATeam: "You're on a team.",
+    leaveTeam: 'Leave team',
+    confirmLeaveTeam: "Leave this team? You'll stop seeing schedules assigned to you.",
+    leftTeam: 'You left the team'
   },
   es: {
     title: 'Keeping Cadence',
@@ -1171,7 +1185,14 @@ const T = {
     decline: 'Rechazar',
     inviteAccepted: 'Invitación aceptada',
     inviteDeclined: 'Invitación rechazada',
-    actualsOnlyNote: 'Tu gestor define el plan; tú registras las horas que realmente trabajas.'
+    actualsOnlyNote: 'Tu gestor define el plan; tú registras las horas que realmente trabajas.',
+    removeMember: 'Quitar',
+    confirmRemoveMember: '¿Quitar a {email} de tu equipo? Se borrarán sus asignaciones de horario.',
+    memberRemoved: 'Miembro eliminado',
+    onATeam: 'Estás en un equipo.',
+    leaveTeam: 'Salir del equipo',
+    confirmLeaveTeam: '¿Salir de este equipo? Dejarás de ver los horarios asignados a ti.',
+    leftTeam: 'Saliste del equipo'
   }
 };
 
@@ -2512,7 +2533,7 @@ function reflectTeam() {
   const btn = document.getElementById('teamBtn');
   if (!btn) return;
   const show = !!(CLOUD.enabled && authUser &&
-    (authUser.role === 'manager' || pendingInvites.length));
+    (authUser.role === 'manager' || pendingInvites.length || authUser.managerId));
   btn.hidden = !show;
   btn.textContent = pendingInvites.length ? `${t('team')} (${pendingInvites.length})` : t('team');
 }
@@ -2529,16 +2550,22 @@ function ownedServerSchedules() {
 
 function renderTeam() {
   const isManager = !!(authUser && authUser.role === 'manager');
+  const onTeam = !!(authUser && authUser.managerId);
   const mgrEl = document.getElementById('teamManager');
   const memEl = document.getElementById('teamMember');
   if (mgrEl) mgrEl.hidden = !isManager;
-  if (memEl) memEl.hidden = !pendingInvites.length;
+  if (memEl) memEl.hidden = isManager || !(pendingInvites.length || onTeam);
+  const leaveEl = document.getElementById('teamLeave');
+  if (leaveEl) leaveEl.hidden = !onTeam;
+  const invHead = document.getElementById('invitesHead');
+  if (invHead) invHead.hidden = !pendingInvites.length;
 
   if (isManager) {
     const ml = document.getElementById('teamMembersList');
     if (ml) {
       ml.innerHTML = teamMembers.length
-        ? teamMembers.map(m => `<div class="team-row"><span class="grow">${escapeHtml(m.email || m.userId)}</span></div>`).join('')
+        ? teamMembers.map(m => `<div class="team-row"><span class="grow">${escapeHtml(m.email || m.userId)}</span>`
+            + `<button type="button" data-remove-member="${escapeHtml(m.userId)}">${escapeHtml(t('removeMember'))}</button></div>`).join('')
         : `<div class="team-empty">${escapeHtml(t('noMembers'))}</div>`;
     }
     const al = document.getElementById('teamAssignList');
@@ -2558,16 +2585,14 @@ function renderTeam() {
     }
   }
 
-  if (pendingInvites.length) {
-    const il = document.getElementById('teamInvitesList');
-    if (il) {
-      il.innerHTML = pendingInvites.map(inv =>
-        `<div class="team-row"><span class="grow">${escapeHtml(t('inviteFrom'))}</span>`
-        + `<span class="invite-actions">`
-        + `<button type="button" class="primary" data-accept-invite="${escapeHtml(inv.id)}">${escapeHtml(t('accept'))}</button>`
-        + `<button type="button" data-decline-invite="${escapeHtml(inv.id)}">${escapeHtml(t('decline'))}</button>`
-        + `</span></div>`).join('');
-    }
+  const il = document.getElementById('teamInvitesList');
+  if (il) {
+    il.innerHTML = pendingInvites.length ? pendingInvites.map(inv =>
+      `<div class="team-row"><span class="grow">${escapeHtml(t('inviteFrom'))}</span>`
+      + `<span class="invite-actions">`
+      + `<button type="button" class="primary" data-accept-invite="${escapeHtml(inv.id)}">${escapeHtml(t('accept'))}</button>`
+      + `<button type="button" data-decline-invite="${escapeHtml(inv.id)}">${escapeHtml(t('decline'))}</button>`
+      + `</span></div>`).join('') : '';
   }
 }
 
@@ -2609,8 +2634,37 @@ function setupTeamUI() {
     } catch (err) { teamMsg(err.message); }
   });
 
+  document.getElementById('leaveTeamBtn').addEventListener('click', async () => {
+    if (!confirm(t('confirmLeaveTeam'))) return;
+    try {
+      teamMsg('');
+      await rpc('leave_team', {});
+      if (authUser) authUser.managerId = null;
+      showToast(t('leftTeam'));
+      await cloudPull();   // schedules assigned to me drop off
+      await syncTeam();
+      renderTeam(); reflectAuth(); render();
+      if (!pendingInvites.length) modal.hidden = true;
+    } catch (err) { teamMsg(err.message); }
+  });
+
   modal.addEventListener('click', async e => {
     if (e.target.closest('[data-modal-close]')) { modal.hidden = true; return; }
+    const rm = e.target.closest('[data-remove-member]');
+    if (rm) {
+      const uid = rm.dataset.removeMember;
+      const mem = teamMembers.find(x => x.userId === uid);
+      if (!confirm(t('confirmRemoveMember').replace('{email}', (mem && mem.email) || ''))) return;
+      try {
+        teamMsg('');
+        await rpc('remove_member', { p_user_id: uid });
+        showToast(t('memberRemoved'));
+        await cloudPull();   // a schedule assignment may have been cleared
+        await syncTeam();
+        renderTeam(); render();
+      } catch (err) { teamMsg(err.message); }
+      return;
+    }
     const acc = e.target.closest('[data-accept-invite]');
     const dec = e.target.closest('[data-decline-invite]');
     if (!acc && !dec) return;
@@ -2631,7 +2685,8 @@ function setupTeamUI() {
       }
       renderTeam();
       reflectAuth();
-      if (!pendingInvites.length && !(authUser && authUser.role === 'manager')) modal.hidden = true;
+      const useful = (authUser && authUser.role === 'manager') || pendingInvites.length || (authUser && authUser.managerId);
+      if (!useful) modal.hidden = true;
     } catch (err) { teamMsg(err.message); }
   });
 }
