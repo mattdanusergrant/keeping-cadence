@@ -2354,7 +2354,7 @@ let cloudTimer = null;
 function cloudPush() {
   if (!CLOUD.enabled || !authUser) return;
   if (cloudTimer) clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(flushSaves, 1200);
+  cloudTimer = setTimeout(() => { cloudTimer = null; flushSaves(); }, 1200);
 }
 async function flushSaves() {
   if (!CLOUD.enabled || !authUser) return;
@@ -2403,7 +2403,7 @@ async function cloudPull() {
       days: Array.isArray(byId[s.id]) && byId[s.id].length === 7
         ? byId[s.id].map(normalizeDay) : Array.from({ length: 7 }, () => emptyDay())
     }));
-    const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: schedules[0].id });
+    const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: state.activeId });
     if (migrated) { state = migrated; render(); }
   }
   return Array.isArray(scheds) ? scheds.length : 0;
@@ -2465,6 +2465,26 @@ async function restoreSession() {
   } catch (e) { setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0; }
   reflectAuth();
 }
+
+// Re-pull when the tab regains focus, so a teammate's change (a new assignment,
+// a member's logged hours) shows up without a manual reload. Guarded so it never
+// clobbers an in-progress edit, and throttled against focus/visibility double-firing.
+let lastPullAt = 0, refreshing = false;
+async function cloudRefresh() {
+  if (!CLOUD.enabled || !authUser || openedFromShare || refreshing) return;
+  if (document.body.classList.contains('edit-mode') || editingDayIndex !== null) return;
+  if (Date.now() - lastPullAt < 4000) return;
+  lastPullAt = Date.now();
+  refreshing = true;
+  try {
+    if (cloudTimer) { clearTimeout(cloudTimer); cloudTimer = null; await flushSaves(); } // flush a pending local save first
+    await cloudPull();
+    await syncTeam();
+  } catch (e) { /* offline: keep the local copy */ }
+  finally { refreshing = false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cloudRefresh(); });
+window.addEventListener('focus', cloudRefresh);
 
 // ---- Teams (Phase 2) ------------------------------------------------------
 // Pull the manager's roster (other profiles whose manager_id is me) and any
