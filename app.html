@@ -15,7 +15,6 @@
     --ink: #1c1c1e;
     --muted: #6e6e73;
     --accent: #3a3f4b;
-    --accent-blue: #5b6b7a;
     --accent-gold: #9a7b3f;
     --warning: #c0392b;
     --border: #e6e4df;
@@ -33,7 +32,6 @@
       --ink: #ececf0;
       --muted: #9a9aa2;
       --accent: #e6e6ea;
-      --accent-blue: #6b7c8c;
       --accent-gold: #c9a24e;
       --warning: #e06b62;
       --border: #2c2c30;
@@ -199,10 +197,6 @@
     position: absolute; top: 0; bottom: 0;
     background: var(--accent);
   }
-  .t-buffer {
-    position: absolute; top: 0; bottom: 0;
-    background: var(--accent-blue); opacity: 0.45;
-  }
   .day-track.invalid::after {
     content: ''; position: absolute;
     left: 0; right: 0; top: 50%;
@@ -251,13 +245,8 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .day-times .buffer {
-    color: var(--muted); font-weight: 400;
-    font-size: 0.82em;
-  }
   .day-times .dash { color: var(--warning); font-weight: 700; }
   .day-times.invalid { color: var(--warning); }
-  .day-times.invalid .buffer { color: var(--warning); opacity: 0.7; }
   .day-times.day-off-mark {
     color: var(--muted); font-style: italic; font-weight: 400;
   }
@@ -463,12 +452,6 @@
     left: 30%; width: 40%;
     background: var(--accent);
   }
-  .help-bar-example .help-buf {
-    position: absolute; top: 0; bottom: 0;
-    background: var(--accent-blue); opacity: 0.45;
-  }
-  .help-bar-example .help-buf-left  { left: 18%;  width: 12%; }
-  .help-bar-example .help-buf-right { left: 70%;  width: 12%; }
   .help-btn {
     padding: 0.3rem 0.6rem !important;
     font-weight: 700;
@@ -799,15 +782,9 @@
     <div class="help-section">
       <h3 data-i18n="helpBarTitle">Reading the bar</h3>
       <div class="help-bar-example" aria-hidden="true">
-        <span class="help-buf help-buf-left"></span>
         <span class="help-bar"></span>
-        <span class="help-buf help-buf-right"></span>
       </div>
       <p data-i18n="helpBarBody"></p>
-    </div>
-    <div class="help-section">
-      <h3 data-i18n="helpRangeTitle">Hours range</h3>
-      <p data-i18n="helpRangeBody"></p>
     </div>
     <div class="help-section">
       <h3 data-i18n="helpTodayTitle">Today's day</h3>
@@ -865,14 +842,14 @@ const DEFAULT_SETTINGS = {
 // Two themes, each with a light + dark palette (the Mode toggle picks which).
 // Base is minimal/neutral; the schedule "highlights" are a dedicated h1–h10 set
 // (SCHEDULE_COLOR_VARS), kept separate from the chrome accents so they can be
-// many and vivid. accent/accent-blue/accent-gold/warning stay as restrained
-// chrome (buttons, buffer bars, "today", invalid times).
+// many and vivid. accent/accent-gold/warning stay as restrained chrome
+// (buttons, "today" emphasis, invalid times).
 const THEMES = {
   standard: {
     label: { en: 'Standard', es: 'Estándar' },
     light: {
       bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
-      accent: '#3a3f4b', 'accent-blue': '#5b6b7a', 'accent-gold': '#9a7b3f',
+      accent: '#3a3f4b', 'accent-gold': '#9a7b3f',
       warning: '#c0392b', border: '#e6e4df', 'on-accent': '#ffffff',
       'today-bg': 'rgba(154, 123, 63, 0.08)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
       h1: '#c0392b', h2: '#d35400', h3: '#a98000', h4: '#2e8b40', h5: '#0e8a8a',
@@ -880,7 +857,7 @@ const THEMES = {
     },
     dark: {
       bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
-      accent: '#e6e6ea', 'accent-blue': '#6b7c8c', 'accent-gold': '#c9a24e',
+      accent: '#e6e6ea', 'accent-gold': '#c9a24e',
       warning: '#e06b62', border: '#2c2c30', 'on-accent': '#161618',
       'today-bg': 'rgba(201, 162, 78, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
       h1: '#ff6b6b', h2: '#ff922b', h3: '#ffd43b', h4: '#51cf66', h5: '#20c997',
@@ -894,7 +871,7 @@ const THEMES = {
     // 9th/10th schedules stay distinguishable under any colour-vision deficiency.
     light: {
       bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
-      accent: '#0072b2', 'accent-blue': '#5b6b7a', 'accent-gold': '#9a7d00',
+      accent: '#0072b2', 'accent-gold': '#9a7d00',
       warning: '#d55e00', border: '#e6e4df', 'on-accent': '#ffffff',
       'today-bg': 'rgba(0, 114, 178, 0.07)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
       h1: '#0072b2', h2: '#d55e00', h3: '#009e73', h4: '#e69f00', h5: '#2f9bd6',
@@ -902,7 +879,7 @@ const THEMES = {
     },
     dark: {
       bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
-      accent: '#4aa6e0', 'accent-blue': '#6b7c8c', 'accent-gold': '#f0d65a',
+      accent: '#4aa6e0', 'accent-gold': '#f0d65a',
       warning: '#ff7a3d', border: '#2c2c30', 'on-accent': '#08121a',
       'today-bg': 'rgba(74, 166, 224, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
       h1: '#4aa6e0', h2: '#ff7a3d', h3: '#2bbf93', h4: '#f0a830', h5: '#7cc7f0',
@@ -960,11 +937,6 @@ const T = {
     reset: 'Reset',
     weekOf: 'Week of',
     hours: 'Hours',
-    bufferLabel: 'Buffer',
-    bufferStart: 'Start',
-    bufferEnd: 'End',
-    bufferNone: 'None',
-    bufferMin: 'min',
     dayOff: 'Day Off',
     themeLabel: 'Theme (optional)',
     themePlaceholder: 'e.g. Park day',
@@ -983,9 +955,7 @@ const T = {
     helpEachDayTitle: 'Each day',
     helpEachDayBody: "Each day shows a horizontal bar with the work hours, then the exact times listed below it.",
     helpBarTitle: 'Reading the bar',
-    helpBarBody: "The solid section is the scheduled work time. The faded ends are buffer time — flexibility on when you might arrive early or stay late.",
-    helpRangeTitle: 'Hours range',
-    helpRangeBody: "A range like '9.5–10.25h' means at least 9.5 hours of work, up to 10.25 hours if all the buffer time is used. The week total at the top adds these up across all 7 days.",
+    helpBarBody: "The bar shows when the scheduled work happens during the day; the exact start and end times are listed just below it.",
     helpTodayTitle: "Today's day",
     helpTodayBody: "The current day stands out with a brighter red line on the left edge and a soft background tint.",
     helpEditTitle: 'Editing a day',
@@ -1070,11 +1040,6 @@ const T = {
     reset: 'Restablecer',
     weekOf: 'Semana del',
     hours: 'Horas',
-    bufferLabel: 'Margen',
-    bufferStart: 'Inicio',
-    bufferEnd: 'Fin',
-    bufferNone: 'Ninguno',
-    bufferMin: 'min',
     dayOff: 'Día libre',
     themeLabel: 'Título (opcional)',
     themePlaceholder: 'p. ej. Día de parque',
@@ -1093,9 +1058,7 @@ const T = {
     helpEachDayTitle: 'Cada día',
     helpEachDayBody: "Cada día muestra una barra horizontal con las horas de trabajo y, debajo, las horas exactas.",
     helpBarTitle: 'Cómo leer la barra',
-    helpBarBody: "La parte sólida es el tiempo de trabajo programado. Los extremos atenuados son tiempo de margen — flexibilidad para llegar antes o quedarse después.",
-    helpRangeTitle: 'Rango de horas',
-    helpRangeBody: "Un rango como '9.5–10.25h' significa al menos 9.5 horas de trabajo, hasta 10.25 horas si se usa todo el margen. El total semanal arriba suma estos valores de los 7 días.",
+    helpBarBody: "La barra muestra cuándo ocurre el trabajo programado durante el día; las horas exactas de inicio y fin aparecen justo debajo.",
     helpTodayTitle: 'El día de hoy',
     helpTodayBody: "El día actual se destaca con una línea roja más brillante a la izquierda y un fondo ligeramente tintado.",
     helpEditTitle: 'Editar un día',
@@ -1159,7 +1122,7 @@ let lastSavedAt = null;
 let editingDayIndex = null;
 
 function emptyDay() {
-  return { title: '', plan: '', start: '', end: '', startBuffer: 0, endBuffer: 0, actualHours: '' };
+  return { title: '', plan: '', start: '', end: '', actualHours: '' };
 }
 
 function hhmmToMinutes(hhmm) {
@@ -1178,26 +1141,11 @@ function minutesToHhmm(mins) {
 
 function normalizeDay(d) {
   d = d || {};
-  let startBuffer = Number(d.startBuffer) || 0;
-  let endBuffer = Number(d.endBuffer) || 0;
-  // Migrate legacy earlyStart/lateEnd into buffer minutes
-  if (!startBuffer && d.earlyStart && d.start) {
-    const s = hhmmToMinutes(d.start);
-    const es = hhmmToMinutes(d.earlyStart);
-    if (s !== null && es !== null && s > es) startBuffer = s - es;
-  }
-  if (!endBuffer && d.lateEnd && d.end) {
-    const e = hhmmToMinutes(d.end);
-    const le = hhmmToMinutes(d.lateEnd);
-    if (e !== null && le !== null && le > e) endBuffer = le - e;
-  }
   return {
     title: d.title || '',
     plan: d.plan || '',
     start: d.start || '',
     end: d.end || '',
-    startBuffer,
-    endBuffer,
     actualHours: (d.actualHours === 0 || d.actualHours) ? String(d.actualHours) : ''
   };
 }
@@ -1221,40 +1169,15 @@ function fmtHoursDecimal(h) {
   return fmtHoursNumber(n) + 'h';
 }
 
-function fmtHoursRange(minMinutes, maxMinutes) {
-  if (minMinutes <= 0 && maxMinutes <= 0) return '';
-  if (maxMinutes === minMinutes) return fmtHoursDecimal(minMinutes / 60);
-  return `${fmtHoursNumber(minMinutes / 60)}–${fmtHoursNumber(maxMinutes / 60)}h`;
-}
-
-function maxMinutesWithBuffers(day) {
-  const baseMinutes = estimatedMinutes(day);
-  if (baseMinutes <= 0) return 0;
-  const sBuf = Number(day.startBuffer) || 0;
-  const eBuf = Number(day.endBuffer) || 0;
-  return baseMinutes + sBuf + eBuf;
-}
-
 function estimatedHoursDisplay(day) {
-  return fmtHoursRange(estimatedMinutes(day), maxMinutesWithBuffers(day));
+  const mins = estimatedMinutes(day);
+  return mins > 0 ? fmtHoursDecimal(mins / 60) : '';
 }
 
 function actualHoursDisplay(day) {
   if (day.actualHours === '' || day.actualHours == null) return '';
   const v = parseFloat(day.actualHours);
   return Number.isFinite(v) && v >= 0 ? fmtHoursDecimal(v) : '';
-}
-
-function bufferOptionsHtml(selected) {
-  const sel = Number(selected) || 0;
-  const opts = [0, 15, 30, 45, 60];
-  let html = '';
-  for (const m of opts) {
-    const selAttr = m === sel ? ' selected' : '';
-    const label = m === 0 ? t('bufferNone') : `${m} ${t('bufferMin')}`;
-    html += `<option value="${m}"${selAttr}>${escapeHtml(label)}</option>`;
-  }
-  return html;
 }
 
 const SCHEDULE_COLOR_VARS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10'];
@@ -1461,23 +1384,15 @@ function loggedRecapHtml(day) {
 function dayTimesInlineHtml(day) {
   const start = fmtTime(day.start);
   const end = fmtTime(day.end);
-  const sBuf = Number(day.startBuffer) || 0;
-  const eBuf = Number(day.endBuffer) || 0;
-  const sMin = hhmmToMinutes(day.start);
-  const eMin = hhmmToMinutes(day.end);
-  const early = (sBuf && sMin !== null) ? fmtTime(minutesToHhmm(sMin - sBuf)) : '';
-  const late = (eBuf && eMin !== null) ? fmtTime(minutesToHhmm(eMin + eBuf)) : '';
 
   if (!start && !end) {
     return `<span class="day-times day-off-mark">${escapeHtml(t('dayOff'))}</span>`;
   }
 
   let inner = '';
-  if (early) inner += `<span class="buffer">${escapeHtml(early)}</span> `;
   if (start) inner += escapeHtml(start);
   if (start && end) inner += ' <span class="dash">–</span> ';
   if (end) inner += escapeHtml(end);
-  if (late) inner += ` <span class="buffer">${escapeHtml(late)}</span>`;
 
   const invalid = isInvalidDayTimes(day);
   return `<span class="day-times${invalid ? ' invalid' : ''}">${inner}</span>`;
@@ -1564,22 +1479,6 @@ function dayTimelineHtml(day, dayName, dateLabel) {
     const eClamped = clamp(eMin, axisMin, axisMax);
     const left = ((sClamped - axisMin) / range) * 100;
     const width = ((eClamped - sClamped) / range) * 100;
-    if (day.startBuffer) {
-      const bufStart = clamp(sMin - day.startBuffer, axisMin, axisMax);
-      const bufLeft = ((bufStart - axisMin) / range) * 100;
-      const bufWidth = ((sClamped - bufStart) / range) * 100;
-      if (bufWidth > 0) {
-        bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
-      }
-    }
-    if (day.endBuffer) {
-      const bufEnd = clamp(eMin + day.endBuffer, axisMin, axisMax);
-      const bufLeft = ((eClamped - axisMin) / range) * 100;
-      const bufWidth = ((bufEnd - eClamped) / range) * 100;
-      if (bufWidth > 0) {
-        bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%"></div>`;
-      }
-    }
     bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></div>`;
   }
 
@@ -1597,13 +1496,11 @@ function dayTimelineHtml(day, dayName, dateLabel) {
 
 function renderWeekSummary() {
   const el = document.getElementById('weekSummary');
-  let estMinMinutes = 0;
-  let estMaxMinutes = 0;
+  let estMinutes = 0;
   let actualTotal = 0;
   let anyActual = false;
   for (const day of activeDays()) {
-    estMinMinutes += estimatedMinutes(day);
-    estMaxMinutes += maxMinutesWithBuffers(day);
+    estMinutes += estimatedMinutes(day);
     if (day.actualHours !== '' && day.actualHours != null) {
       const v = parseFloat(day.actualHours);
       if (Number.isFinite(v) && v >= 0) {
@@ -1613,8 +1510,8 @@ function renderWeekSummary() {
     }
   }
   let parts = [];
-  if (estMinMinutes > 0) {
-    parts.push(`<span class="lbl">${escapeHtml(t('weekScheduledLabel'))}</span> <span class="est">${escapeHtml(fmtHoursRange(estMinMinutes, estMaxMinutes))}</span>`);
+  if (estMinutes > 0) {
+    parts.push(`<span class="lbl">${escapeHtml(t('weekScheduledLabel'))}</span> <span class="est">${escapeHtml(fmtHoursDecimal(estMinutes / 60))}</span>`);
   }
   if (anyActual) {
     parts.push(`<span class="lbl">${escapeHtml(t('weekLoggedLabel'))}</span> <span class="actual">${escapeHtml(fmtHoursDecimal(actualTotal))}</span>`);
@@ -1686,18 +1583,6 @@ function masterBarHtml(day, colorVar) {
     const eClamped = clamp(eMin, axisMin, axisMax);
     const left = ((sClamped - axisMin) / range) * 100;
     const width = ((eClamped - sClamped) / range) * 100;
-    if (day.startBuffer) {
-      const bufStart = clamp(sMin - day.startBuffer, axisMin, axisMax);
-      const bufLeft = ((bufStart - axisMin) / range) * 100;
-      const bufWidth = ((sClamped - bufStart) / range) * 100;
-      if (bufWidth > 0) bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%;background:var(--${colorVar})"></div>`;
-    }
-    if (day.endBuffer) {
-      const bufEnd = clamp(eMin + day.endBuffer, axisMin, axisMax);
-      const bufLeft = ((eClamped - axisMin) / range) * 100;
-      const bufWidth = ((bufEnd - eClamped) / range) * 100;
-      if (bufWidth > 0) bars += `<div class="t-buffer" style="left:${bufLeft.toFixed(2)}%;width:${bufWidth.toFixed(2)}%;background:var(--${colorVar})"></div>`;
-    }
     bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:var(--${colorVar})"></div>`;
   }
   return `<div class="day-track master-track">${bars}</div>`;
@@ -1763,17 +1648,6 @@ function render() {
           </div>
         </div>
         <div class="field">
-          <label>${escapeHtml(t('bufferLabel'))}</label>
-          <div class="time-row">
-            <label class="inline-label">${escapeHtml(t('bufferStart'))}
-              <select class="time-select" data-day="${i}" data-field="startBuffer">${bufferOptionsHtml(day.startBuffer)}</select>
-            </label>
-            <label class="inline-label">${escapeHtml(t('bufferEnd'))}
-              <select class="time-select" data-day="${i}" data-field="endBuffer">${bufferOptionsHtml(day.endBuffer)}</select>
-            </label>
-          </div>
-        </div>
-        <div class="field">
           <label>${escapeHtml(t('themeLabel'))}</label>
           <input type="text" data-day="${i}" data-field="title" value="${escapeHtml(day.title)}" placeholder="${escapeHtml(t('themePlaceholder'))}">
         </div>
@@ -1814,7 +1688,6 @@ function renderSavedIndicator(override) {
 }
 
 function coerceFieldValue(field, value) {
-  if (field === 'startBuffer' || field === 'endBuffer') return Number(value) || 0;
   return value;
 }
 
@@ -2021,7 +1894,7 @@ document.getElementById('days').addEventListener('click', e => {
     const days = activeDays();
     const d = days[idx];
     const hasContent = d.title.trim() || d.plan.trim() ||
-      d.start || d.end || d.startBuffer || d.endBuffer;
+      d.start || d.end;
     if (hasContent && !confirm(t('confirmClearDay'))) return;
     days[idx] = emptyDay();
     render();
@@ -2095,7 +1968,7 @@ document.getElementById('importFile').addEventListener('change', e => {
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
   const hasContent = state.schedules.some(sched => sched.days.some(d =>
-    d.title.trim() || d.plan.trim() || d.start || d.end || d.startBuffer || d.endBuffer));
+    d.title.trim() || d.plan.trim() || d.start || d.end));
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = {
     weekStart: addDays(state.weekStart, 7),
@@ -2320,7 +2193,7 @@ function setAuthUserFromProfile(email, prof) {
 }
 function scheduleHasContent(s) {
   return s.days && s.days.some(d => (d.title && d.title.trim()) || (d.plan && d.plan.trim()) ||
-    d.start || d.end || d.startBuffer || d.endBuffer || (d.actualHours !== '' && d.actualHours != null));
+    d.start || d.end || (d.actualHours !== '' && d.actualHours != null));
 }
 
 let cloudTimer = null;

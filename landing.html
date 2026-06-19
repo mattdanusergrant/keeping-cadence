@@ -7,17 +7,21 @@
 <meta name="description" content="Keeping Cadence lays out everyone's week on one timeline — plan hours, log what was actually worked, and share a clean view with your whole team.">
 <style>
   :root {
-    --bg: #faf8f3; --card: #ffffff; --ink: #1f1f1f; --muted: #6b6b6b;
-    --accent: #b97441; --accent-soft: rgba(185,116,65,0.12);
-    --border: #e7e2d6; --on-accent: #ffffff;
-    --shadow: 0 1px 2px rgba(0,0,0,0.04); --shadow-lg: 0 8px 30px rgba(80,50,20,0.08);
+    /* Standard theme — light (matches app.html). Minimal neutral base. */
+    --bg: #fafafa; --card: #ffffff; --ink: #1c1c1e; --muted: #6e6e73;
+    --accent: #3a3f4b; --accent-soft: rgba(58,63,75,0.10);
+    --border: #e6e4df; --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(0,0,0,0.05); --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+    /* schedule highlight hues, echoing the app timeline */
+    --b1: #c0392b; --b2: #d35400; --b3: #2e8b40; --b4: #1f6fb2; --b5: #7b3fb5;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #161616; --card: #1f1f1f; --ink: #efece4; --muted: #9a9a9a;
-      --accent: #d99564; --accent-soft: rgba(217,149,100,0.14);
-      --border: #2e2e2e; --on-accent: #1a1209;
+      --bg: #161618; --card: #1f1f22; --ink: #ececf0; --muted: #9a9aa2;
+      --accent: #e6e6ea; --accent-soft: rgba(230,230,234,0.12);
+      --border: #2c2c30; --on-accent: #161618;
       --shadow: 0 1px 2px rgba(0,0,0,0.2); --shadow-lg: 0 8px 30px rgba(0,0,0,0.35);
+      --b1: #ff6b6b; --b2: #ff922b; --b3: #51cf66; --b4: #4dabf7; --b5: #b197fc;
     }
   }
   * { box-sizing: border-box; }
@@ -75,8 +79,7 @@
   .mock-row { display: grid; grid-template-columns: 2.6rem 1fr; align-items: center; gap: 0.6rem; margin: 0.5rem 0; }
   .mock-row .d { font-size: 0.78rem; color: var(--muted); }
   .track { position: relative; height: 16px; background: var(--accent-soft); border-radius: 8px; }
-  .bar { position: absolute; top: 0; height: 16px; border-radius: 8px; background: var(--accent); opacity: 0.9; }
-  .bar.buf { opacity: 0.35; }
+  .bar { position: absolute; top: 0; height: 16px; border-radius: 8px; background: var(--accent); opacity: 0.92; }
 
   /* Sections */
   section { padding: 3.5rem 0; }
@@ -137,11 +140,11 @@
 
       <div class="mock" aria-hidden="true">
         <div class="mock-head"><span data-i18n="thisWeek">This week</span><span data-i18n="monSun">Mon – Sun</span></div>
-        <div class="mock-row"><span class="d">1</span><div class="track"><span class="bar buf" style="left:14%;width:6%"></span><span class="bar" style="left:20%;width:46%"></span></div></div>
-        <div class="mock-row"><span class="d">2</span><div class="track"><span class="bar" style="left:24%;width:40%"></span></div></div>
-        <div class="mock-row"><span class="d">3</span><div class="track"><span class="bar" style="left:18%;width:52%"></span><span class="bar buf" style="left:70%;width:7%"></span></div></div>
-        <div class="mock-row"><span class="d">4</span><div class="track"><span class="bar" style="left:30%;width:34%"></span></div></div>
-        <div class="mock-row"><span class="d">5</span><div class="track"><span class="bar" style="left:20%;width:44%"></span></div></div>
+        <div class="mock-row"><span class="d">1</span><div class="track"><span class="bar" style="left:20%;width:46%;background:var(--b1)"></span></div></div>
+        <div class="mock-row"><span class="d">2</span><div class="track"><span class="bar" style="left:24%;width:40%;background:var(--b2)"></span></div></div>
+        <div class="mock-row"><span class="d">3</span><div class="track"><span class="bar" style="left:18%;width:52%;background:var(--b3)"></span></div></div>
+        <div class="mock-row"><span class="d">4</span><div class="track"><span class="bar" style="left:30%;width:34%;background:var(--b4)"></span></div></div>
+        <div class="mock-row"><span class="d">5</span><div class="track"><span class="bar" style="left:20%;width:44%;background:var(--b5)"></span></div></div>
       </div>
     </div>
   </section>
@@ -154,7 +157,7 @@
         <div class="feat">
           <div class="ico" aria-hidden="true">▦</div>
           <h3 data-i18n="f1h">One visual timeline</h3>
-          <p data-i18n="f1p">Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.</p>
+          <p data-i18n="f1p">Plot each person's hours Mon–Sun on a shared bar timeline, color-coded by person.</p>
         </div>
         <div class="feat">
           <div class="ico" aria-hidden="true">✓</div>
@@ -229,7 +232,7 @@
       featTitle: "Everything a shared week needs",
       featSub: "Built for a manager and the people they schedule — nannies, shift staff, anyone on a recurring week.",
       f1h: "One visual timeline",
-      f1p: "Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.",
+      f1p: "Plot each person's hours Mon–Sun on a shared bar timeline, color-coded by person.",
       f2h: "Plan vs. actual",
       f2p: "Managers set the plan; each person logs the hours they actually worked. See scheduled and logged side by side.",
       f3h: "Self-serve teams",
@@ -254,7 +257,7 @@
       featTitle: "Todo lo que necesita una semana compartida",
       featSub: "Hecho para un gestor y las personas que organiza: niñeras, personal por turnos, cualquiera con una semana recurrente.",
       f1h: "Una línea de tiempo visual",
-      f1p: "Traza las horas de cada persona de lunes a domingo en una línea de tiempo compartida, con márgenes opcionales de entrada temprana y salida tardía.",
+      f1p: "Traza las horas de cada persona de lunes a domingo en una línea de tiempo compartida, con un color por persona.",
       f2h: "Plan vs. real",
       f2p: "El gestor define el plan; cada persona registra las horas que realmente trabajó. Ve lo programado y lo registrado lado a lado.",
       f3h: "Equipos autogestionados",
