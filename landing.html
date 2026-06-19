@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keeping Cadence — a shared schedule that keeps everyone in sync</title>
+<meta name="description" content="Keeping Cadence lays out everyone's week on one timeline — plan hours, log what was actually worked, and share a clean view with your whole team.">
+<style>
+  :root {
+    --bg: #faf8f3; --card: #ffffff; --ink: #1f1f1f; --muted: #6b6b6b;
+    --accent: #b97441; --accent-soft: rgba(185,116,65,0.12);
+    --border: #e7e2d6; --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04); --shadow-lg: 0 8px 30px rgba(80,50,20,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161616; --card: #1f1f1f; --ink: #efece4; --muted: #9a9a9a;
+      --accent: #d99564; --accent-soft: rgba(217,149,100,0.14);
+      --border: #2e2e2e; --on-accent: #1a1209;
+      --shadow: 0 1px 2px rgba(0,0,0,0.2); --shadow-lg: 0 8px 30px rgba(0,0,0,0.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 1.25rem; }
+
+  .btn {
+    display: inline-block; font: inherit; font-weight: 600; cursor: pointer;
+    padding: 0.7rem 1.3rem; border-radius: 9px; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--on-accent); text-decoration: none;
+    transition: transform .08s ease, box-shadow .15s ease;
+  }
+  .btn:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 0; }
+  .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; font-size: 1.05rem; }
+  .mark { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); position: relative; flex: none; }
+  .mark::after { content: ""; position: absolute; left: 4px; top: 7px; width: 10px; height: 4px; border-radius: 2px; background: var(--on-accent); }
+
+  /* Hero */
+  .hero { padding: 4.5rem 0 3rem; text-align: center; }
+  .hero h1 { font-size: clamp(2rem, 5.5vw, 3.2rem); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 1rem; }
+  .hero .lede { font-size: clamp(1.05rem, 2.4vw, 1.3rem); color: var(--muted); max-width: 38ch; margin: 0 auto 2rem; }
+  .cta-row { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
+  .pill { display: inline-block; font-size: 0.78rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0.3rem 0.7rem; border-radius: 999px; margin-bottom: 1.3rem; }
+
+  /* Hero mock — a little weekly timeline, echoing the app */
+  .mock {
+    margin: 3rem auto 0; max-width: 640px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow-lg); padding: 1.1rem 1.2rem; text-align: left;
+  }
+  .mock-head { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.7rem; display: flex; justify-content: space-between; }
+  .mock-row { display: grid; grid-template-columns: 2.6rem 1fr; align-items: center; gap: 0.6rem; margin: 0.5rem 0; }
+  .mock-row .d { font-size: 0.78rem; color: var(--muted); }
+  .track { position: relative; height: 16px; background: var(--accent-soft); border-radius: 8px; }
+  .bar { position: absolute; top: 0; height: 16px; border-radius: 8px; background: var(--accent); opacity: 0.9; }
+  .bar.buf { opacity: 0.35; }
+
+  /* Sections */
+  section { padding: 3.5rem 0; }
+  .section-title { text-align: center; font-size: clamp(1.5rem, 3.5vw, 2rem); letter-spacing: -0.01em; margin: 0 0 0.5rem; }
+  .section-sub { text-align: center; color: var(--muted); max-width: 46ch; margin: 0 auto 2.4rem; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .feat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.3rem; box-shadow: var(--shadow); }
+  .feat h3 { margin: 0.2rem 0 0.4rem; font-size: 1.1rem; }
+  .feat p { margin: 0; color: var(--muted); font-size: 0.96rem; }
+  .ico { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 1.1rem; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; counter-reset: step; }
+  .step { text-align: center; padding: 0.5rem; }
+  .step .n { width: 38px; height: 38px; margin: 0 auto 0.7rem; border-radius: 999px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; }
+  .step h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+  .step p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+
+  .cta-band { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem 1.5rem; text-align: center; box-shadow: var(--shadow); }
+  .cta-band h2 { margin: 0 0 0.4rem; font-size: clamp(1.4rem, 3.5vw, 1.9rem); }
+  .cta-band p { color: var(--muted); margin: 0 0 1.5rem; }
+
+  footer { border-top: 1px solid var(--border); padding: 2rem 0 2.5rem; color: var(--muted); font-size: 0.88rem; }
+  .foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .grid, .steps { grid-template-columns: 1fr; }
+    .hero { padding: 3rem 0 2rem; }
+    section { padding: 2.5rem 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <div class="brand"><span class="mark" aria-hidden="true"></span> Keeping Cadence</div>
+    <a class="btn" href="https://app.keepingcadence.com">Open the app</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="pill">Weekly scheduling for teams</span>
+      <h1>A shared schedule that keeps everyone in sync.</h1>
+      <p class="lede">Lay out everyone's week on one timeline — plan the hours, log what was actually worked, and share a clean view with your whole team.</p>
+      <div class="cta-row">
+        <a class="btn" href="https://app.keepingcadence.com">Open the app →</a>
+        <a class="btn ghost" href="#how">See how it works</a>
+      </div>
+
+      <div class="mock" aria-hidden="true">
+        <div class="mock-head"><span>This week</span><span>Mon – Sun</span></div>
+        <div class="mock-row"><span class="d">Mon</span><div class="track"><span class="bar buf" style="left:14%;width:6%"></span><span class="bar" style="left:20%;width:46%"></span></div></div>
+        <div class="mock-row"><span class="d">Tue</span><div class="track"><span class="bar" style="left:24%;width:40%"></span></div></div>
+        <div class="mock-row"><span class="d">Wed</span><div class="track"><span class="bar" style="left:18%;width:52%"></span><span class="bar buf" style="left:70%;width:7%"></span></div></div>
+        <div class="mock-row"><span class="d">Thu</span><div class="track"><span class="bar" style="left:30%;width:34%"></span></div></div>
+        <div class="mock-row"><span class="d">Fri</span><div class="track"><span class="bar" style="left:20%;width:44%"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">Everything a shared week needs</h2>
+      <p class="section-sub">Built for a manager and the people they schedule — nannies, shift staff, anyone on a recurring week.</p>
+      <div class="grid">
+        <div class="feat">
+          <div class="ico" aria-hidden="true">▦</div>
+          <h3>One visual timeline</h3>
+          <p>Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.</p>
+        </div>
+        <div class="feat">
+          <div class="ico" aria-hidden="true">✓</div>
+          <h3>Plan vs. actual</h3>
+          <p>Managers set the plan; each person logs the hours they actually worked. See scheduled and logged side by side.</p>
+        </div>
+        <div class="feat">
+          <div class="ico" aria-hidden="true">◎</div>
+          <h3>Self-serve teams</h3>
+          <p>Sign up, invite people by email, and assign each their schedule. No admin setup, no per-seat wrangling.</p>
+        </div>
+        <div class="feat">
+          <div class="ico" aria-hidden="true">⤳</div>
+          <h3>Share anything</h3>
+          <p>Send a read-only link to anyone — no account needed. Bilingual (English/Spanish), light or dark, works offline.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2 class="section-title">How it works</h2>
+      <p class="section-sub">From empty week to everyone in sync in three steps.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <h3>Build the week</h3>
+          <p>Add a schedule and set each day's hours on the timeline.</p>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <h3>Invite your team</h3>
+          <p>Invite people by email and assign each one their schedule.</p>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <h3>Keep the cadence</h3>
+          <p>Everyone logs their actual hours; you see the whole picture.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band">
+        <h2>Ready to keep the cadence?</h2>
+        <p>It's free, runs in your browser, and there's nothing to install.</p>
+        <a class="btn" href="https://app.keepingcadence.com">Open the app →</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="brand"><span class="mark" aria-hidden="true"></span> Keeping Cadence</div>
+    <div><a href="https://app.keepingcadence.com">Open the app</a></div>
+  </div>
+</footer>
+</body>
+</html>
