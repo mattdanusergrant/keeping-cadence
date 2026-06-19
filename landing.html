@@ -47,15 +47,22 @@
     backdrop-filter: saturate(1.4) blur(8px);
     border-bottom: 1px solid var(--border);
   }
-  .nav { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 0; }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 0; gap: 0.6rem; }
   .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; font-size: 1.05rem; }
   .mark { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); position: relative; flex: none; }
   .mark::after { content: ""; position: absolute; left: 4px; top: 7px; width: 10px; height: 4px; border-radius: 2px; background: var(--on-accent); }
+  .nav-right { display: flex; align-items: center; gap: 0.6rem; }
+  .lang {
+    display: inline-flex; border: 1px solid var(--border); border-radius: 999px;
+    overflow: hidden; background: var(--card); cursor: pointer; font: inherit; padding: 0;
+  }
+  .lang span { padding: 0.32rem 0.6rem; font-size: 0.76rem; font-weight: 600; color: var(--muted); }
+  body.lang-en .lang span[data-l="en"], body.lang-es .lang span[data-l="es"] { background: var(--accent); color: var(--on-accent); }
 
   /* Hero */
   .hero { padding: 4.5rem 0 3rem; text-align: center; }
   .hero h1 { font-size: clamp(2rem, 5.5vw, 3.2rem); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 1rem; }
-  .hero .lede { font-size: clamp(1.05rem, 2.4vw, 1.3rem); color: var(--muted); max-width: 38ch; margin: 0 auto 2rem; }
+  .hero .lede { font-size: clamp(1.05rem, 2.4vw, 1.3rem); color: var(--muted); max-width: 42ch; margin: 0 auto 2rem; }
   .cta-row { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
   .pill { display: inline-block; font-size: 0.78rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0.3rem 0.7rem; border-radius: 999px; margin-bottom: 1.3rem; }
 
@@ -74,7 +81,7 @@
   /* Sections */
   section { padding: 3.5rem 0; }
   .section-title { text-align: center; font-size: clamp(1.5rem, 3.5vw, 2rem); letter-spacing: -0.01em; margin: 0 0 0.5rem; }
-  .section-sub { text-align: center; color: var(--muted); max-width: 46ch; margin: 0 auto 2.4rem; }
+  .section-sub { text-align: center; color: var(--muted); max-width: 50ch; margin: 0 auto 2.4rem; }
 
   .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
   .feat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.3rem; box-shadow: var(--shadow); }
@@ -82,7 +89,7 @@
   .feat p { margin: 0; color: var(--muted); font-size: 0.96rem; }
   .ico { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 1.1rem; }
 
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; counter-reset: step; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
   .step { text-align: center; padding: 0.5rem; }
   .step .n { width: 38px; height: 38px; margin: 0 auto 0.7rem; border-radius: 999px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; }
   .step h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
@@ -104,60 +111,65 @@
   }
 </style>
 </head>
-<body>
+<body class="lang-en">
 <header>
   <div class="wrap nav">
     <div class="brand"><span class="mark" aria-hidden="true"></span> Keeping Cadence</div>
-    <a class="btn" href="https://app.keepingcadence.com">Open the app</a>
+    <div class="nav-right">
+      <button id="langBtn" class="lang" type="button" aria-label="Language / Idioma">
+        <span data-l="en">EN</span><span data-l="es">ES</span>
+      </button>
+      <a class="btn" href="https://app.keepingcadence.com" data-i18n="openApp">Open the app</a>
+    </div>
   </div>
 </header>
 
 <main>
   <section class="hero">
     <div class="wrap">
-      <span class="pill">Weekly scheduling for teams</span>
-      <h1>A shared schedule that keeps everyone in sync.</h1>
-      <p class="lede">Lay out everyone's week on one timeline — plan the hours, log what was actually worked, and share a clean view with your whole team.</p>
+      <span class="pill" data-i18n="pill">Weekly scheduling for teams</span>
+      <h1 data-i18n="h1">A shared schedule that keeps everyone in sync.</h1>
+      <p class="lede" data-i18n="lede">Lay out everyone's week on one timeline — plan the hours, log what was actually worked, and share a clean view with your whole team.</p>
       <div class="cta-row">
-        <a class="btn" href="https://app.keepingcadence.com">Open the app →</a>
-        <a class="btn ghost" href="#how">See how it works</a>
+        <a class="btn" href="https://app.keepingcadence.com" data-i18n="ctaOpen">Open the app →</a>
+        <a class="btn ghost" href="#how" data-i18n="ctaHow">See how it works</a>
       </div>
 
       <div class="mock" aria-hidden="true">
-        <div class="mock-head"><span>This week</span><span>Mon – Sun</span></div>
-        <div class="mock-row"><span class="d">Mon</span><div class="track"><span class="bar buf" style="left:14%;width:6%"></span><span class="bar" style="left:20%;width:46%"></span></div></div>
-        <div class="mock-row"><span class="d">Tue</span><div class="track"><span class="bar" style="left:24%;width:40%"></span></div></div>
-        <div class="mock-row"><span class="d">Wed</span><div class="track"><span class="bar" style="left:18%;width:52%"></span><span class="bar buf" style="left:70%;width:7%"></span></div></div>
-        <div class="mock-row"><span class="d">Thu</span><div class="track"><span class="bar" style="left:30%;width:34%"></span></div></div>
-        <div class="mock-row"><span class="d">Fri</span><div class="track"><span class="bar" style="left:20%;width:44%"></span></div></div>
+        <div class="mock-head"><span data-i18n="thisWeek">This week</span><span data-i18n="monSun">Mon – Sun</span></div>
+        <div class="mock-row"><span class="d">1</span><div class="track"><span class="bar buf" style="left:14%;width:6%"></span><span class="bar" style="left:20%;width:46%"></span></div></div>
+        <div class="mock-row"><span class="d">2</span><div class="track"><span class="bar" style="left:24%;width:40%"></span></div></div>
+        <div class="mock-row"><span class="d">3</span><div class="track"><span class="bar" style="left:18%;width:52%"></span><span class="bar buf" style="left:70%;width:7%"></span></div></div>
+        <div class="mock-row"><span class="d">4</span><div class="track"><span class="bar" style="left:30%;width:34%"></span></div></div>
+        <div class="mock-row"><span class="d">5</span><div class="track"><span class="bar" style="left:20%;width:44%"></span></div></div>
       </div>
     </div>
   </section>
 
   <section>
     <div class="wrap">
-      <h2 class="section-title">Everything a shared week needs</h2>
-      <p class="section-sub">Built for a manager and the people they schedule — nannies, shift staff, anyone on a recurring week.</p>
+      <h2 class="section-title" data-i18n="featTitle">Everything a shared week needs</h2>
+      <p class="section-sub" data-i18n="featSub">Built for a manager and the people they schedule — nannies, shift staff, anyone on a recurring week.</p>
       <div class="grid">
         <div class="feat">
           <div class="ico" aria-hidden="true">▦</div>
-          <h3>One visual timeline</h3>
-          <p>Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.</p>
+          <h3 data-i18n="f1h">One visual timeline</h3>
+          <p data-i18n="f1p">Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.</p>
         </div>
         <div class="feat">
           <div class="ico" aria-hidden="true">✓</div>
-          <h3>Plan vs. actual</h3>
-          <p>Managers set the plan; each person logs the hours they actually worked. See scheduled and logged side by side.</p>
+          <h3 data-i18n="f2h">Plan vs. actual</h3>
+          <p data-i18n="f2p">Managers set the plan; each person logs the hours they actually worked. See scheduled and logged side by side.</p>
         </div>
         <div class="feat">
           <div class="ico" aria-hidden="true">◎</div>
-          <h3>Self-serve teams</h3>
-          <p>Sign up, invite people by email, and assign each their schedule. No admin setup, no per-seat wrangling.</p>
+          <h3 data-i18n="f3h">Self-serve teams</h3>
+          <p data-i18n="f3p">Sign up, invite people by email, and assign each their schedule. No admin setup, no per-seat wrangling.</p>
         </div>
         <div class="feat">
           <div class="ico" aria-hidden="true">⤳</div>
-          <h3>Share anything</h3>
-          <p>Send a read-only link to anyone — no account needed. Bilingual (English/Spanish), light or dark, works offline.</p>
+          <h3 data-i18n="f4h">Share anything</h3>
+          <p data-i18n="f4p">Send a read-only link to anyone — no account needed. Bilingual (English/Spanish), light or dark, works offline.</p>
         </div>
       </div>
     </div>
@@ -165,23 +177,23 @@
 
   <section id="how">
     <div class="wrap">
-      <h2 class="section-title">How it works</h2>
-      <p class="section-sub">From empty week to everyone in sync in three steps.</p>
+      <h2 class="section-title" data-i18n="howTitle">How it works</h2>
+      <p class="section-sub" data-i18n="howSub">From empty week to everyone in sync in three steps.</p>
       <div class="steps">
         <div class="step">
           <div class="n">1</div>
-          <h3>Build the week</h3>
-          <p>Add a schedule and set each day's hours on the timeline.</p>
+          <h3 data-i18n="s1h">Build the week</h3>
+          <p data-i18n="s1p">Add a schedule and set each day's hours on the timeline.</p>
         </div>
         <div class="step">
           <div class="n">2</div>
-          <h3>Invite your team</h3>
-          <p>Invite people by email and assign each one their schedule.</p>
+          <h3 data-i18n="s2h">Invite your team</h3>
+          <p data-i18n="s2p">Invite people by email and assign each one their schedule.</p>
         </div>
         <div class="step">
           <div class="n">3</div>
-          <h3>Keep the cadence</h3>
-          <p>Everyone logs their actual hours; you see the whole picture.</p>
+          <h3 data-i18n="s3h">Keep the cadence</h3>
+          <p data-i18n="s3p">Everyone logs their actual hours; you see the whole picture.</p>
         </div>
       </div>
     </div>
@@ -190,9 +202,9 @@
   <section>
     <div class="wrap">
       <div class="cta-band">
-        <h2>Ready to keep the cadence?</h2>
-        <p>It's free, runs in your browser, and there's nothing to install.</p>
-        <a class="btn" href="https://app.keepingcadence.com">Open the app →</a>
+        <h2 data-i18n="bandH">Ready to keep the cadence?</h2>
+        <p data-i18n="bandP">It's free, runs in your browser, and there's nothing to install.</p>
+        <a class="btn" href="https://app.keepingcadence.com" data-i18n="ctaOpen">Open the app →</a>
       </div>
     </div>
   </section>
@@ -201,8 +213,83 @@
 <footer>
   <div class="wrap foot">
     <div class="brand"><span class="mark" aria-hidden="true"></span> Keeping Cadence</div>
-    <div><a href="https://app.keepingcadence.com">Open the app</a></div>
+    <div><a href="https://app.keepingcadence.com" data-i18n="openApp">Open the app</a></div>
   </div>
 </footer>
+
+<script>
+  var T = {
+    en: {
+      title: "Keeping Cadence — a shared schedule that keeps everyone in sync",
+      openApp: "Open the app", ctaOpen: "Open the app →", ctaHow: "See how it works",
+      pill: "Weekly scheduling for teams",
+      h1: "A shared schedule that keeps everyone in sync.",
+      lede: "Lay out everyone's week on one timeline — plan the hours, log what was actually worked, and share a clean view with your whole team.",
+      thisWeek: "This week", monSun: "Mon – Sun",
+      featTitle: "Everything a shared week needs",
+      featSub: "Built for a manager and the people they schedule — nannies, shift staff, anyone on a recurring week.",
+      f1h: "One visual timeline",
+      f1p: "Plot each person's hours Mon–Sun on a shared bar timeline, with optional early-start and late-end buffers.",
+      f2h: "Plan vs. actual",
+      f2p: "Managers set the plan; each person logs the hours they actually worked. See scheduled and logged side by side.",
+      f3h: "Self-serve teams",
+      f3p: "Sign up, invite people by email, and assign each their schedule. No admin setup, no per-seat wrangling.",
+      f4h: "Share anything",
+      f4p: "Send a read-only link to anyone — no account needed. Bilingual (English/Spanish), light or dark, works offline.",
+      howTitle: "How it works",
+      howSub: "From empty week to everyone in sync in three steps.",
+      s1h: "Build the week", s1p: "Add a schedule and set each day's hours on the timeline.",
+      s2h: "Invite your team", s2p: "Invite people by email and assign each one their schedule.",
+      s3h: "Keep the cadence", s3p: "Everyone logs their actual hours; you see the whole picture.",
+      bandH: "Ready to keep the cadence?",
+      bandP: "It's free, runs in your browser, and there's nothing to install."
+    },
+    es: {
+      title: "Keeping Cadence — un horario compartido que mantiene a todos sincronizados",
+      openApp: "Abrir la app", ctaOpen: "Abrir la app →", ctaHow: "Cómo funciona",
+      pill: "Horarios semanales para equipos",
+      h1: "Un horario compartido que mantiene a todos sincronizados.",
+      lede: "Organiza la semana de cada persona en una sola línea de tiempo: planifica las horas, registra lo realmente trabajado y comparte una vista clara con todo tu equipo.",
+      thisWeek: "Esta semana", monSun: "Lun – Dom",
+      featTitle: "Todo lo que necesita una semana compartida",
+      featSub: "Hecho para un gestor y las personas que organiza: niñeras, personal por turnos, cualquiera con una semana recurrente.",
+      f1h: "Una línea de tiempo visual",
+      f1p: "Traza las horas de cada persona de lunes a domingo en una línea de tiempo compartida, con márgenes opcionales de entrada temprana y salida tardía.",
+      f2h: "Plan vs. real",
+      f2p: "El gestor define el plan; cada persona registra las horas que realmente trabajó. Ve lo programado y lo registrado lado a lado.",
+      f3h: "Equipos autogestionados",
+      f3p: "Regístrate, invita por correo y asigna a cada quien su horario. Sin configuración de administrador ni complicaciones por asiento.",
+      f4h: "Comparte lo que sea",
+      f4p: "Envía un enlace de solo lectura a cualquiera, sin necesidad de cuenta. Bilingüe (inglés/español), claro u oscuro, funciona sin conexión.",
+      howTitle: "Cómo funciona",
+      howSub: "De una semana vacía a todos sincronizados en tres pasos.",
+      s1h: "Arma la semana", s1p: "Agrega un horario y define las horas de cada día en la línea de tiempo.",
+      s2h: "Invita a tu equipo", s2p: "Invita por correo y asigna a cada persona su horario.",
+      s3h: "Mantén el ritmo", s3p: "Cada quien registra sus horas reales; tú ves el panorama completo.",
+      bandH: "¿Listo para mantener el ritmo?",
+      bandP: "Es gratis, funciona en tu navegador y no hay nada que instalar."
+    }
+  };
+  function applyLang(l) {
+    var dict = T[l] || T.en;
+    document.documentElement.lang = l;
+    document.body.className = "lang-" + l;
+    document.title = dict.title;
+    document.querySelectorAll("[data-i18n]").forEach(function (el) {
+      var v = dict[el.getAttribute("data-i18n")];
+      if (v != null) el.textContent = v;
+    });
+    try { localStorage.setItem("kc-landing-lang", l); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("kc-landing-lang"); } catch (e) {}
+  var lang = (saved === "en" || saved === "es") ? saved
+    : ((navigator.language || "").toLowerCase().indexOf("es") === 0 ? "es" : "en");
+  applyLang(lang);
+  document.getElementById("langBtn").addEventListener("click", function () {
+    lang = (lang === "en") ? "es" : "en";
+    applyLang(lang);
+  });
+</script>
 </body>
 </html>
