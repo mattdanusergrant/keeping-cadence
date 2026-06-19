@@ -7,33 +7,41 @@
 <!-- #LLM-generated -->
 <style>
   :root {
-    --bg: #faf8f3;
+    /* Standard — light. Minimal neutral base; vivid, distinct schedule
+       highlights (h1–h10). Mirrors THEMES.standard.light (JS applies it live;
+       this is the flash-free default before JS runs). */
+    --bg: #fafafa;
     --card: #ffffff;
-    --ink: #1f1f1f;
-    --muted: #6b6b6b;
-    --accent: #b97441;
-    --accent-blue: #b97441;
-    --accent-gold: #b97441;
-    --warning: #c0524a;
-    --border: #e7e2d6;
+    --ink: #1c1c1e;
+    --muted: #6e6e73;
+    --accent: #3a3f4b;
+    --accent-blue: #5b6b7a;
+    --accent-gold: #9a7b3f;
+    --warning: #c0392b;
+    --border: #e6e4df;
     --on-accent: #ffffff;
-    --today-bg: rgba(185, 116, 65, 0.07);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --today-bg: rgba(154, 123, 63, 0.08);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --h1: #c0392b; --h2: #d35400; --h3: #a98000; --h4: #2e8b40; --h5: #0e8a8a;
+    --h6: #1f6fb2; --h7: #3f51b5; --h8: #7b3fb5; --h9: #b03a72; --h10: #7a5240;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #161616;
-      --card: #1f1f1f;
-      --ink: #efece4;
-      --muted: #9a9a9a;
-      --accent: #d99564;
-      --accent-blue: #d99564;
-      --accent-gold: #d99564;
-      --warning: #e07b6f;
-      --border: #2e2e2e;
-      --on-accent: #ffffff;
-      --today-bg: rgba(217, 149, 100, 0.08);
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      /* Standard — dark. */
+      --bg: #161618;
+      --card: #1f1f22;
+      --ink: #ececf0;
+      --muted: #9a9aa2;
+      --accent: #e6e6ea;
+      --accent-blue: #6b7c8c;
+      --accent-gold: #c9a24e;
+      --warning: #e06b62;
+      --border: #2c2c30;
+      --on-accent: #161618;
+      --today-bg: rgba(201, 162, 78, 0.10);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --h1: #ff6b6b; --h2: #ff922b; --h3: #ffd43b; --h4: #51cf66; --h5: #20c997;
+      --h6: #4dabf7; --h7: #748ffc; --h8: #b197fc; --h9: #f06595; --h10: #c9a27e;
     }
   }
   * { box-sizing: border-box; }
@@ -850,117 +858,61 @@ let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   startMin: '07:00', startMax: '15:00',
   endMin: '12:00',  endMax: '20:00',
-  theme: 'default',
+  theme: 'standard',
   mode: 'auto'
 };
 
+// Two themes, each with a light + dark palette (the Mode toggle picks which).
+// Base is minimal/neutral; the schedule "highlights" are a dedicated h1–h10 set
+// (SCHEDULE_COLOR_VARS), kept separate from the chrome accents so they can be
+// many and vivid. accent/accent-blue/accent-gold/warning stay as restrained
+// chrome (buttons, buffer bars, "today", invalid times).
 const THEMES = {
-  default: {
-    label: { en: 'Default', es: 'Por defecto' },
+  standard: {
+    label: { en: 'Standard', es: 'Estándar' },
     light: {
-      bg: '#faf8f3', card: '#ffffff', ink: '#1f1f1f', muted: '#6b6b6b',
-      accent: '#b97441', 'accent-blue': '#b97441', 'accent-gold': '#b97441',
-      warning: '#c0524a', border: '#e7e2d6', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(185, 116, 65, 0.07)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+      bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
+      accent: '#3a3f4b', 'accent-blue': '#5b6b7a', 'accent-gold': '#9a7b3f',
+      warning: '#c0392b', border: '#e6e4df', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(154, 123, 63, 0.08)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+      h1: '#c0392b', h2: '#d35400', h3: '#a98000', h4: '#2e8b40', h5: '#0e8a8a',
+      h6: '#1f6fb2', h7: '#3f51b5', h8: '#7b3fb5', h9: '#b03a72', h10: '#7a5240'
     },
     dark: {
-      bg: '#161616', card: '#1f1f1f', ink: '#efece4', muted: '#9a9a9a',
-      accent: '#d99564', 'accent-blue': '#d99564', 'accent-gold': '#d99564',
-      warning: '#e07b6f', border: '#2e2e2e', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(217, 149, 100, 0.08)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
+      bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
+      accent: '#e6e6ea', 'accent-blue': '#6b7c8c', 'accent-gold': '#c9a24e',
+      warning: '#e06b62', border: '#2c2c30', 'on-accent': '#161618',
+      'today-bg': 'rgba(201, 162, 78, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+      h1: '#ff6b6b', h2: '#ff922b', h3: '#ffd43b', h4: '#51cf66', h5: '#20c997',
+      h6: '#4dabf7', h7: '#748ffc', h8: '#b197fc', h9: '#f06595', h10: '#c9a27e'
     }
   },
-  colombia: {
-    label: { en: 'Colombia', es: 'Colombia' },
+  colorblind: {
+    label: { en: 'Colorblind', es: 'Daltónico' },
+    // Highlights use the Okabe–Ito colour-blind-safe palette (h1–h8), tuned per
+    // mode for legibility, plus two lightness-distinct neutrals (h9–h10) so the
+    // 9th/10th schedules stay distinguishable under any colour-vision deficiency.
     light: {
-      bg: '#f4f6fa', card: '#ffffff', ink: '#1a1f2e', muted: '#6b7a8c',
-      accent: '#003893', 'accent-blue': '#ce1126', 'accent-gold': '#a07522',
-      warning: '#ce1126', border: '#d6dde6', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(252, 209, 22, 0.13)',
-      shadow: '0 1px 2px rgba(0, 20, 60, 0.06)'
+      bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
+      accent: '#0072b2', 'accent-blue': '#5b6b7a', 'accent-gold': '#9a7d00',
+      warning: '#d55e00', border: '#e6e4df', 'on-accent': '#ffffff',
+      'today-bg': 'rgba(0, 114, 178, 0.07)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+      h1: '#0072b2', h2: '#d55e00', h3: '#009e73', h4: '#e69f00', h5: '#2f9bd6',
+      h6: '#cc79a7', h7: '#9a7d00', h8: '#1a1a1a', h9: '#7a7a7a', h10: '#6b4f3a'
     },
     dark: {
-      bg: '#0e1626', card: '#182338', ink: '#ebeef6', muted: '#8d9aae',
-      accent: '#5d8acf', 'accent-blue': '#e07069', 'accent-gold': '#fcd116',
-      warning: '#e07069', border: '#2a3548', 'on-accent': '#1c1814',
-      'today-bg': 'rgba(252, 209, 22, 0.13)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
-    }
-  },
-  ocean: {
-    label: { en: 'Ocean', es: 'Océano' },
-    light: {
-      bg: '#eef5f8', card: '#ffffff', ink: '#1d2a35', muted: '#5b7385',
-      accent: '#2e7a96', 'accent-blue': '#3d5a98', 'accent-gold': '#dd8b56',
-      warning: '#c85a52', border: '#d4e0e8', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(221, 139, 86, 0.10)',
-      shadow: '0 1px 2px rgba(30, 60, 90, 0.06)'
-    },
-    dark: {
-      bg: '#0e1a22', card: '#152431', ink: '#e0eaf0', muted: '#7a96aa',
-      accent: '#58b5d5', 'accent-blue': '#6a8acf', 'accent-gold': '#e8a87a',
-      warning: '#e57867', border: '#2a3a48', 'on-accent': '#0c1620',
-      'today-bg': 'rgba(232, 168, 122, 0.10)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
-    }
-  },
-  forest: {
-    label: { en: 'Forest', es: 'Bosque' },
-    light: {
-      bg: '#f1f4ed', card: '#ffffff', ink: '#1f2a1c', muted: '#637058',
-      accent: '#4a6b3f', 'accent-blue': '#6a8d3d', 'accent-gold': '#a87a3f',
-      warning: '#b85a3d', border: '#dde6d2', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(168, 122, 63, 0.10)',
-      shadow: '0 1px 2px rgba(40, 60, 30, 0.07)'
-    },
-    dark: {
-      bg: '#11160e', card: '#1a2116', ink: '#e6ecde', muted: '#8a9b7a',
-      accent: '#88b27e', 'accent-blue': '#a8bf75', 'accent-gold': '#d49c5e',
-      warning: '#e07b6f', border: '#2a3324', 'on-accent': '#0c1408',
-      'today-bg': 'rgba(212, 156, 94, 0.10)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
-    }
-  },
-  sunset: {
-    label: { en: 'Sunset', es: 'Atardecer' },
-    light: {
-      bg: '#fbf1e9', card: '#ffffff', ink: '#2a1f1a', muted: '#86684f',
-      accent: '#c45a3d', 'accent-blue': '#9a5896', 'accent-gold': '#e8a548',
-      warning: '#a83626', border: '#ecd9c6', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(232, 165, 72, 0.10)',
-      shadow: '0 1px 2px rgba(120, 70, 30, 0.08)'
-    },
-    dark: {
-      bg: '#1a110d', card: '#221814', ink: '#f5e6d6', muted: '#a89380',
-      accent: '#f08c69', 'accent-blue': '#c280bc', 'accent-gold': '#f0c178',
-      warning: '#e57867', border: '#3a261d', 'on-accent': '#1a110d',
-      'today-bg': 'rgba(240, 193, 120, 0.10)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
-    }
-  },
-  berry: {
-    label: { en: 'Berry', es: 'Baya' },
-    light: {
-      bg: '#f6eef3', card: '#ffffff', ink: '#291c25', muted: '#7e5e75',
-      accent: '#9d2a76', 'accent-blue': '#5d6fb6', 'accent-gold': '#b86a8a',
-      warning: '#c84a3d', border: '#e6d4dd', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(184, 106, 138, 0.10)',
-      shadow: '0 1px 2px rgba(80, 30, 60, 0.07)'
-    },
-    dark: {
-      bg: '#160e15', card: '#1f1620', ink: '#f0e3ec', muted: '#a387a0',
-      accent: '#d472af', 'accent-blue': '#8b9cd9', 'accent-gold': '#dd92a8',
-      warning: '#e57867', border: '#2f1f2c', 'on-accent': '#160e15',
-      'today-bg': 'rgba(221, 146, 168, 0.10)',
-      shadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+      bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
+      accent: '#4aa6e0', 'accent-blue': '#6b7c8c', 'accent-gold': '#f0d65a',
+      warning: '#ff7a3d', border: '#2c2c30', 'on-accent': '#08121a',
+      'today-bg': 'rgba(74, 166, 224, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+      h1: '#4aa6e0', h2: '#ff7a3d', h3: '#2bbf93', h4: '#f0a830', h5: '#7cc7f0',
+      h6: '#e29ac4', h7: '#f0e442', h8: '#f5f5f5', h9: '#b0b0b0', h10: '#c2a07a'
     }
   }
 };
 
 function applyTheme(themeName, mode) {
-  const theme = THEMES[themeName] || THEMES.default;
+  const theme = THEMES[themeName] || THEMES.standard;
   const effectiveMode = mode || (settings && settings.mode) || 'auto';
   let isDark;
   if (effectiveMode === 'light') isDark = false;
@@ -1305,7 +1257,7 @@ function bufferOptionsHtml(selected) {
   return html;
 }
 
-const SCHEDULE_COLOR_VARS = ['accent', 'accent-blue', 'accent-gold', 'warning'];
+const SCHEDULE_COLOR_VARS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10'];
 
 function newScheduleId() {
   return 'sched-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
@@ -1323,13 +1275,13 @@ function newSchedule(name, colorVar) {
   return {
     id: newScheduleId(),
     name: name || 'Schedule',
-    colorVar: colorVar || 'accent',
+    colorVar: colorVar || 'h1',
     days: Array.from({ length: 7 }, () => emptyDay())
   };
 }
 
 function freshState(startIso) {
-  const s1 = newSchedule('Schedule 1', 'accent');
+  const s1 = newSchedule('Schedule 1', 'h1');
   return {
     weekStart: startIso || isoMonday(new Date()),
     schedules: [s1],
@@ -1359,7 +1311,7 @@ function migrateState(data) {
     const s = {
       id: newScheduleId(),
       name: 'Schedule 1',
-      colorVar: 'accent',
+      colorVar: 'h1',
       days: data.days.map(normalizeDay)
     };
     return { weekStart: data.weekStart, schedules: [s], activeId: s.id };
