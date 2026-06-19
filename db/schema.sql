@@ -178,18 +178,24 @@ end $$;
 -- Owner writes the plan; each day's actualHours is preserved.
 create or replace function save_plan(p_schedule_id uuid, p_week_start date, p_days jsonb)
 returns void language plpgsql security definer set search_path = public as $$
-  declare existing jsonb; merged jsonb;
+  declare existing jsonb; merged jsonb; has_assignee boolean;
 begin
-  if not exists (select 1 from schedules where id = p_schedule_id and owner_id = auth.user_id()) then
-    raise exception 'not your schedule';
+  -- has_assignee: null = not your schedule, false = solo, true = assigned to a member
+  select (assigned_user_id is not null) into has_assignee
+    from schedules where id = p_schedule_id and owner_id = auth.user_id();
+  if has_assignee is null then raise exception 'not your schedule'; end if;
+  if has_assignee then
+    -- a member owns the actuals, so carry over each day's existing actualHours
+    select days into existing from weeks where schedule_id = p_schedule_id and week_start = p_week_start;
+    select jsonb_agg(
+             (p_days -> idx) || jsonb_build_object('actualHours',
+               coalesce(existing -> idx ->> 'actualHours', p_days -> idx ->> 'actualHours', ''))
+             order by idx)
+      into merged
+      from generate_series(0, jsonb_array_length(p_days) - 1) as t(idx);
+  else
+    merged := p_days;  -- solo: the owner controls both plan and actuals
   end if;
-  select days into existing from weeks where schedule_id = p_schedule_id and week_start = p_week_start;
-  select jsonb_agg(
-           (p_days -> idx) || jsonb_build_object('actualHours',
-             coalesce(existing -> idx ->> 'actualHours', p_days -> idx ->> 'actualHours', ''))
-           order by idx)
-    into merged
-    from generate_series(0, jsonb_array_length(p_days) - 1) as t(idx);
   insert into weeks (schedule_id, week_start, days, updated_at)
     values (p_schedule_id, p_week_start, merged, now())
     on conflict (schedule_id, week_start) do update set days = excluded.days, updated_at = now();
@@ -215,6 +221,13 @@ begin
     where schedule_id = p_schedule_id and week_start = p_week_start;
 end $$;
 
+-- Delete a schedule you own (its weeks cascade away via the FK).
+create or replace function delete_schedule(p_schedule_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from schedules where id = p_schedule_id and owner_id = auth.user_id();
+end $$;
+
 -- ===========================================================================
 -- Grants for the Data API roles. Reads = SELECT (RLS-filtered); every write
 -- goes through an RPC (no direct INSERT/UPDATE/DELETE granted to authenticated).
@@ -231,7 +244,8 @@ grant execute on function
   create_schedule(text, text, text),
   update_schedule(uuid, text, text, text, boolean),
   save_plan(uuid, date, jsonb),
-  save_actuals(uuid, date, jsonb)
+  save_actuals(uuid, date, jsonb),
+  delete_schedule(uuid)
 to authenticated;
 
 notify pgrst, 'reload schema';
