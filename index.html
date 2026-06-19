@@ -497,6 +497,35 @@
     background: var(--accent); color: var(--on-accent); border-color: var(--accent);
   }
 
+  .account-hint { color: var(--muted); font-size: 0.82rem; margin: 0.25rem 0 0; }
+  .team-subhead { font-size: 0.95rem; margin: 0.9rem 0 0.3rem; }
+  .team-list { display: flex; flex-direction: column; gap: 0.4rem; }
+  .team-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.92rem; flex-wrap: wrap;
+  }
+  .team-row .grow {
+    flex: 1; min-width: 8rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .team-row select {
+    font: inherit; padding: 0.3rem 0.4rem; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--card); color: var(--ink);
+  }
+  .team-row button {
+    font: inherit; padding: 0.3rem 0.6rem; border-radius: 7px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--border); color: var(--ink);
+  }
+  .team-row button:hover { border-color: var(--accent); }
+  .team-row button.primary {
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  }
+  .team-empty { color: var(--muted); font-size: 0.88rem; }
+  .role-hint { color: var(--muted); font-size: 0.85rem; margin: 0.15rem 0 0.55rem; }
+  .plan-recap { margin-bottom: 0.5rem; }
+  .plan-recap .day-title { margin-top: 0.2rem; }
+  .logged-recap { margin-top: 0.35rem; }
+
   @media (max-width: 520px) {
     body { padding: 0.5rem; font-size: 15px; line-height: 1.35; }
     h1 { font-size: 0.95rem; }
@@ -605,6 +634,7 @@
           <span data-lang="en">EN</span><span data-lang="es">ES</span>
         </button>
         <button id="helpBtn" class="help-btn" type="button" data-i18n-aria-label="help" aria-label="How to read this">?</button>
+        <button id="teamBtn" type="button" hidden>Team</button>
         <button id="accountBtn" type="button" hidden data-i18n="signIn">Sign in</button>
         <button id="shareBtn" data-i18n="share">Share</button>
         <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
@@ -630,6 +660,7 @@
   </div>
 
   <div class="schedule-tabs" id="scheduleTabs"></div>
+  <div class="role-hint" id="roleHint" hidden></div>
   <div class="week-summary" id="weekSummary" hidden></div>
   <div class="days" id="days"></div>
 </div>
@@ -649,6 +680,14 @@
         <label for="acctPassword" data-i18n="password">Password</label>
         <input type="password" id="acctPassword" autocomplete="current-password">
       </div>
+      <div class="setting-row">
+        <label for="acctRole" data-i18n="accountType">Account type</label>
+        <select id="acctRole">
+          <option value="user" data-i18n="roleUser">Just me</option>
+          <option value="manager" data-i18n="roleManager">I manage a team</option>
+        </select>
+      </div>
+      <p class="account-hint" data-i18n="accountTypeHint">Applies to new accounts. Managers can invite people and assign them schedules.</p>
       <p class="account-msg" id="accountMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
       <div class="modal-actions">
         <button type="button" data-modal-close data-i18n="cancel">Cancel</button>
@@ -662,6 +701,34 @@
         <button type="button" data-modal-close data-i18n="close">Close</button>
         <button type="button" id="logoutBtn" data-i18n="signOut">Sign out</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="teamModal" hidden>
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-card" role="dialog" aria-labelledby="teamHeading">
+    <h2 id="teamHeading" data-i18n="teamTitle">Team</h2>
+    <div id="teamManager" hidden>
+      <div class="setting-row">
+        <label for="inviteEmailInput" data-i18n="inviteEmail">Invite by email</label>
+        <input type="email" id="inviteEmailInput" autocomplete="off">
+      </div>
+      <div class="modal-actions" style="margin-top:.4rem">
+        <button type="button" id="inviteBtn" class="primary" data-i18n="invite">Invite</button>
+      </div>
+      <h3 class="team-subhead" data-i18n="teamMembers">Team members</h3>
+      <div id="teamMembersList" class="team-list"></div>
+      <h3 class="team-subhead" data-i18n="assignHead">Assign schedules</h3>
+      <div id="teamAssignList" class="team-list"></div>
+    </div>
+    <div id="teamMember" hidden>
+      <h3 class="team-subhead" data-i18n="pendingInvites">Invitations</h3>
+      <div id="teamInvitesList" class="team-list"></div>
+    </div>
+    <p class="account-msg" id="teamMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
+    <div class="modal-actions">
+      <button type="button" class="primary" data-modal-close data-i18n="close">Close</button>
     </div>
   </div>
 </div>
@@ -769,7 +836,9 @@ const CLOUD = {
   dataApi:  'https://ep-tiny-sun-a6wesvb9.apirest.us-west-2.aws.neon.tech/neondb/rest/v1',
 };
 const SESSION_KEY = 'keeping-cadence-session';
-let authUser = null;
+let authUser = null;          // { email, userId, role, managerId } once signed in
+let teamMembers = [];         // manager's roster: [{ userId, email }]
+let pendingInvites = [];      // invites addressed to me: [{ id, manager_id }]
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   startMin: '07:00', startMax: '15:00',
@@ -978,7 +1047,28 @@ const T = {
     confirmDuplicate: 'Duplicate to next week? You can\'t navigate back to the current one.',
     loadError: 'Could not load file: ',
     invalidFile: 'Not a valid schedule file.',
-    sharePrompt: 'Copy this share link:'
+    sharePrompt: 'Copy this share link:',
+    team: 'Team',
+    teamTitle: 'Team',
+    accountType: 'Account type',
+    roleUser: 'Just me',
+    roleManager: 'I manage a team',
+    accountTypeHint: 'Applies to new accounts. Managers can invite people and assign them schedules.',
+    inviteEmail: 'Invite by email',
+    invite: 'Invite',
+    invited: 'Invitation sent',
+    teamMembers: 'Team members',
+    noMembers: 'No one has joined yet.',
+    assignHead: 'Assign schedules',
+    unassigned: 'Unassigned',
+    noSchedulesToAssign: 'Create a schedule first, then assign it here.',
+    pendingInvites: 'Invitations',
+    inviteFrom: 'You\'ve been invited to join a team.',
+    accept: 'Accept',
+    decline: 'Decline',
+    inviteAccepted: 'Invitation accepted',
+    inviteDeclined: 'Invitation declined',
+    actualsOnlyNote: 'Your manager sets the plan; you log the hours you actually work.'
   },
   es: {
     title: 'Keeping Cadence',
@@ -1060,7 +1150,28 @@ const T = {
     confirmDuplicate: '¿Duplicar a la próxima semana? No podrás volver a la actual.',
     loadError: 'No se pudo cargar el archivo: ',
     invalidFile: 'Archivo de horario no válido.',
-    sharePrompt: 'Copia este enlace:'
+    sharePrompt: 'Copia este enlace:',
+    team: 'Equipo',
+    teamTitle: 'Equipo',
+    accountType: 'Tipo de cuenta',
+    roleUser: 'Solo yo',
+    roleManager: 'Gestiono un equipo',
+    accountTypeHint: 'Aplica a cuentas nuevas. Los gestores pueden invitar personas y asignarles horarios.',
+    inviteEmail: 'Invitar por correo',
+    invite: 'Invitar',
+    invited: 'Invitación enviada',
+    teamMembers: 'Miembros del equipo',
+    noMembers: 'Nadie se ha unido todavía.',
+    assignHead: 'Asignar horarios',
+    unassigned: 'Sin asignar',
+    noSchedulesToAssign: 'Crea un horario primero y luego asígnalo aquí.',
+    pendingInvites: 'Invitaciones',
+    inviteFrom: 'Te han invitado a unirte a un equipo.',
+    accept: 'Aceptar',
+    decline: 'Rechazar',
+    inviteAccepted: 'Invitación aceptada',
+    inviteDeclined: 'Invitación rechazada',
+    actualsOnlyNote: 'Tu gestor define el plan; tú registras las horas que realmente trabajas.'
   }
 };
 
@@ -1212,6 +1323,8 @@ function migrateState(data) {
       id: s.id || newScheduleId(),
       name: s.name || ('Schedule ' + (i + 1)),
       colorVar: s.colorVar || colorVarForIndex(i),
+      ownerId: s.ownerId,
+      assignedUserId: s.assignedUserId,
       days: Array.isArray(s.days) && s.days.length === 7
         ? s.days.map(normalizeDay)
         : Array.from({ length: 7 }, () => emptyDay())
@@ -1247,6 +1360,18 @@ function activeDays() {
   const s = activeSchedule();
   return s ? s.days : [];
 }
+
+// 'actuals' = a schedule someone else owns that is assigned to me (I log hours
+// only); 'plan' = I own it (solo, or as a manager who authors the plan).
+function scheduleAccess(s) {
+  if (CLOUD.enabled && authUser && authUser.userId && s && s.ownerId &&
+      s.ownerId !== authUser.userId && s.assignedUserId === authUser.userId) {
+    return 'actuals';
+  }
+  return 'plan';
+}
+function activeAccess() { return scheduleAccess(activeSchedule()); }
+function activeHasAssignee() { const s = activeSchedule(); return !!(s && s.assignedUserId); }
 
 function isoMonday(d) {
   const date = new Date(d);
@@ -1340,6 +1465,24 @@ function dayActualRowHtml(day) {
   const actual = actualHoursDisplay(day);
   if (!actual) return '';
   return `<div class="day-hours-row"><span class="actual">${escapeHtml(actual)} ${escapeHtml(t('loggedSuffix'))}</span></div>`;
+}
+
+// Read-only plan shown to an assigned member while they edit hours (the normal
+// .readonly block is hidden in edit mode, so they'd otherwise lose context).
+function planRecapHtml(day) {
+  let html = dayTimesRowHtml(day);
+  if (day.title.trim()) html += `<div class="day-title">${escapeHtml(day.title)}</div>`;
+  if (day.plan.trim()) html += `<div class="day-plan">${escapeHtml(day.plan)}</div>`;
+  return `<div class="plan-recap">${html}</div>`;
+}
+
+// Read-only logged hours shown to a manager editing an assigned schedule's plan,
+// so they see plan vs. actual side by side (the actuals field is theirs to read,
+// not edit — the member owns it).
+function loggedRecapHtml(day) {
+  const actual = actualHoursDisplay(day);
+  if (!actual) return '';
+  return `<div class="day-hours-row logged-recap"><span class="actual">${escapeHtml(actual)} ${escapeHtml(t('loggedSuffix'))}</span></div>`;
 }
 
 function dayTimesInlineHtml(day) {
@@ -1594,11 +1737,21 @@ function render() {
 
   if (isMasterView()) {
     document.getElementById('weekSummary').hidden = true;
+    document.getElementById('roleHint').hidden = true;
     renderMasterDays();
     return;
   }
 
   renderWeekSummary();
+  // Plan-vs-actuals write split: an owner edits the plan; an assigned member
+  // edits only their logged hours. Solo schedules let one person do both.
+  const access = activeAccess();
+  const canEditPlan = access === 'plan';
+  const hasAssignee = activeHasAssignee();
+  const canEditActuals = access === 'actuals' || (canEditPlan && !hasAssignee);
+  const roleHint = document.getElementById('roleHint');
+  if (access === 'actuals') { roleHint.textContent = t('actualsOnlyNote'); roleHint.hidden = false; }
+  else { roleHint.hidden = true; }
   const todayIso = todayIsoLocal();
   const days = document.getElementById('days');
   days.innerHTML = '';
@@ -1627,6 +1780,7 @@ function render() {
         ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
       <div class="editable">
+        ${canEditPlan ? `
         <div class="field">
           <label>${escapeHtml(t('hours'))}</label>
           <div class="time-row">
@@ -1653,7 +1807,8 @@ function render() {
         <div class="field">
           <label>${escapeHtml(t('planLabel'))}</label>
           <textarea data-day="${i}" data-field="plan" placeholder="${escapeHtml(t('planPlaceholder'))}">${escapeHtml(day.plan)}</textarea>
-        </div>
+        </div>` : planRecapHtml(day)}
+        ${canEditActuals ? `
         <div class="field">
           <label>${escapeHtml(t('actualHoursLabel'))}</label>
           <input type="number" min="0" step="0.25" inputmode="decimal"
@@ -1661,10 +1816,10 @@ function render() {
             data-day="${i}" data-field="actualHours"
             value="${escapeHtml(day.actualHours)}"
             placeholder="${escapeHtml(estimatedHoursDisplay(day) || '')}">
-        </div>
+        </div>` : (hasAssignee ? loggedRecapHtml(day) : '')}
         <div class="day-actions">
-          <button type="button" class="clear-day-btn" data-clear-day="${i}">${escapeHtml(t('clearDay'))}</button>
-          ${i < 6 ? `<button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>` : ''}
+          ${canEditPlan ? `<button type="button" class="clear-day-btn" data-clear-day="${i}">${escapeHtml(t('clearDay'))}</button>
+          ${i < 6 ? `<button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>` : ''}` : ''}
           <button type="button" class="day-action-done editing-only primary" data-done-day="${i}">${escapeHtml(t('done'))}</button>
         </div>
       </div>
@@ -1796,6 +1951,7 @@ function setLang(newLang) {
   localStorage.setItem(LANG_KEY, lang);
   applyStaticTranslations();
   render();
+  if (CLOUD.enabled) reflectAuth();  // re-label account + team buttons (dynamic text)
 }
 
 // --- Event wiring ---
@@ -2172,6 +2328,23 @@ async function dapi(path, opts = {}, _retry) {
 }
 function rpc(name, args) { return dapi('/rpc/' + name, { method: 'POST', body: JSON.stringify(args || {}) }); }
 function isServerId(v) { return /^[0-9a-f-]{36}$/i.test(String(v)); }
+// RPCs returning a single composite come back as an object or a 1-element array.
+function unrow(x) { return Array.isArray(x) ? x[0] : x; }
+function decodeJwtSub(jwt) {
+  try {
+    const b = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const p = JSON.parse(decodeURIComponent(escape(atob(b + '='.repeat((4 - b.length % 4) % 4)))));
+    return p.sub || p.user_id || null;
+  } catch (e) { return null; }
+}
+function setAuthUserFromProfile(email, prof) {
+  authUser = {
+    email: (prof && prof.email) || email,
+    userId: (prof && prof.user_id) || decodeJwtSub(dataJwt),
+    role: (prof && prof.role) || 'user',
+    managerId: prof && prof.manager_id
+  };
+}
 function scheduleHasContent(s) {
   return s.days && s.days.some(d => (d.title && d.title.trim()) || (d.plan && d.plan.trim()) ||
     d.start || d.end || d.startBuffer || d.endBuffer || (d.actualHours !== '' && d.actualHours != null));
@@ -2188,19 +2361,29 @@ async function flushSaves() {
   const week = state.weekStart;
   for (const s of state.schedules.slice()) {
     try {
+      // Assigned member: write only this week's actual hours (the plan is the
+      // owner's and is preserved server-side).
+      if (scheduleAccess(s) === 'actuals') {
+        if (!isServerId(s.id)) continue;
+        const actuals = s.days.map(d => (d.actualHours === 0 || d.actualHours) ? String(d.actualHours) : '');
+        await rpc('save_actuals', { p_schedule_id: s.id, p_week_start: week, p_actuals: actuals });
+        continue;
+      }
       let id = s.id;
       if (!isServerId(id)) {
         // local-only schedule: create it server-side, then adopt the real id
         const created = await rpc('create_schedule', { p_name: s.name, p_color: s.colorVar });
-        const row = Array.isArray(created) ? created[0] : created;
+        const row = unrow(created);
         if (row && row.id) {
           if (state.activeId === s.id) state.activeId = row.id;
           s.id = row.id; id = row.id;
+          s.ownerId = row.owner_id || (authUser && authUser.userId);
           try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) {}
         }
       } else {
         await rpc('update_schedule', { p_schedule_id: id, p_name: s.name, p_color: s.colorVar });
       }
+      // Owner writes the plan; save_plan carries over a member's actualHours.
       await rpc('save_plan', { p_schedule_id: id, p_week_start: week, p_days: s.days });
     } catch (e) { /* offline/error: the local draft remains the source of truth */ }
   }
@@ -2216,6 +2399,7 @@ async function cloudPull() {
     const byId = {}; (weeks || []).forEach(w => { byId[w.schedule_id] = w.days; });
     const schedules = scheds.map(s => ({
       id: s.id, name: s.name, colorVar: s.color_var || 'accent',
+      ownerId: s.owner_id, assignedUserId: s.assigned_user_id,
       days: Array.isArray(byId[s.id]) && byId[s.id].length === 7
         ? byId[s.id].map(normalizeDay) : Array.from({ length: 7 }, () => emptyDay())
     }));
@@ -2235,12 +2419,15 @@ function reflectAuth() {
   if (out) out.hidden = !!authUser;
   if (inn) inn.hidden = !authUser;
   if (authUser) { const em = document.getElementById('accountEmail'); if (em) em.textContent = authUser.email; }
+  reflectTeam();
 }
 
 async function doAuth(action) {
   const email = document.getElementById('acctEmail').value.trim();
   const password = document.getElementById('acctPassword').value;
   if (!email || !password) throw new Error('Enter an email and password');
+  const roleSel = document.getElementById('acctRole');
+  const role = (roleSel && roleSel.value === 'manager') ? 'manager' : 'user';
   if (action === 'signup') {
     await authFetch('/sign-up/email', { method: 'POST', body: JSON.stringify({ email, password, name: email }) });
     if (!sessionToken()) await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
@@ -2248,11 +2435,18 @@ async function doAuth(action) {
     await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
   }
   await getDataJwt(true);
-  try { await rpc('init_profile', { p_email: email }); } catch (e) {}
-  authUser = { email };
+  // init_profile is idempotent; it only sets the role on first creation (at
+  // signup) and just refreshes the email on later calls.
+  let prof = null;
+  try {
+    prof = unrow(await rpc('init_profile',
+      action === 'signup' ? { p_email: email, p_role: role } : { p_email: email }));
+  } catch (e) {}
+  setAuthUserFromProfile(email, prof);
   const hadLocal = state.schedules && state.schedules.some(scheduleHasContent);
   const n = await cloudPull();
   if (n === 0 && hadLocal) cloudPush();   // move pre-account local work into the new account
+  await syncTeam();
   reflectAuth();
 }
 
@@ -2262,11 +2456,164 @@ async function restoreSession() {
     const s = await authFetch('/get-session', { method: 'GET' });
     const u = s && (s.user || (s.session && s.session.user));
     if (!u || !u.email) throw new Error('no session');
-    authUser = { email: u.email };
     await getDataJwt(true);
+    let prof = null;
+    try { prof = unrow(await rpc('init_profile', { p_email: u.email })); } catch (e) {}
+    setAuthUserFromProfile(u.email, prof);
     await cloudPull();
+    await syncTeam();
   } catch (e) { setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0; }
   reflectAuth();
+}
+
+// ---- Teams (Phase 2) ------------------------------------------------------
+// Pull the manager's roster (other profiles whose manager_id is me) and any
+// pending invites addressed to me. Both are RLS-guarded reads.
+async function syncTeam() {
+  if (!CLOUD.enabled || !authUser) { teamMembers = []; pendingInvites = []; reflectTeam(); return; }
+  try {
+    if (authUser.role === 'manager') {
+      const profs = await dapi('/profiles?select=user_id,email,manager_id');
+      teamMembers = (profs || [])
+        .filter(p => p.manager_id === authUser.userId)
+        .map(p => ({ userId: p.user_id, email: p.email }));
+    } else {
+      teamMembers = [];
+    }
+    // RLS also returns invites I sent (manager_id = me); keep only the ones
+    // addressed to me.
+    const inv = await dapi('/team_invites?select=id,manager_id,status&status=eq.pending');
+    pendingInvites = (inv || []).filter(i => i.manager_id !== authUser.userId);
+  } catch (e) { /* keep previous values on a transient error */ }
+  reflectTeam();
+}
+
+function reflectTeam() {
+  const btn = document.getElementById('teamBtn');
+  if (!btn) return;
+  const show = !!(CLOUD.enabled && authUser &&
+    (authUser.role === 'manager' || pendingInvites.length));
+  btn.hidden = !show;
+  btn.textContent = pendingInvites.length ? `${t('team')} (${pendingInvites.length})` : t('team');
+}
+
+function teamMsg(m) {
+  const el = document.getElementById('teamMsg');
+  if (el) { el.textContent = m || ''; el.hidden = !m; }
+}
+
+// Schedules I own (so a manager can assign them) that already exist server-side.
+function ownedServerSchedules() {
+  return state.schedules.filter(s => isServerId(s.id) && scheduleAccess(s) === 'plan');
+}
+
+function renderTeam() {
+  const isManager = !!(authUser && authUser.role === 'manager');
+  const mgrEl = document.getElementById('teamManager');
+  const memEl = document.getElementById('teamMember');
+  if (mgrEl) mgrEl.hidden = !isManager;
+  if (memEl) memEl.hidden = !pendingInvites.length;
+
+  if (isManager) {
+    const ml = document.getElementById('teamMembersList');
+    if (ml) {
+      ml.innerHTML = teamMembers.length
+        ? teamMembers.map(m => `<div class="team-row"><span class="grow">${escapeHtml(m.email || m.userId)}</span></div>`).join('')
+        : `<div class="team-empty">${escapeHtml(t('noMembers'))}</div>`;
+    }
+    const al = document.getElementById('teamAssignList');
+    if (al) {
+      const scheds = ownedServerSchedules();
+      if (!scheds.length || !teamMembers.length) {
+        al.innerHTML = `<div class="team-empty">${escapeHtml(scheds.length ? t('noMembers') : t('noSchedulesToAssign'))}</div>`;
+      } else {
+        al.innerHTML = scheds.map(s => {
+          const opts = [`<option value="">${escapeHtml(t('unassigned'))}</option>`].concat(
+            teamMembers.map(m => `<option value="${escapeHtml(m.userId)}"${m.userId === s.assignedUserId ? ' selected' : ''}>${escapeHtml(m.email || m.userId)}</option>`)
+          ).join('');
+          return `<div class="team-row"><span class="grow">${escapeHtml(s.name)}</span>`
+            + `<select data-assign-schedule="${escapeHtml(s.id)}">${opts}</select></div>`;
+        }).join('');
+      }
+    }
+  }
+
+  if (pendingInvites.length) {
+    const il = document.getElementById('teamInvitesList');
+    if (il) {
+      il.innerHTML = pendingInvites.map(inv =>
+        `<div class="team-row"><span class="grow">${escapeHtml(t('inviteFrom'))}</span>`
+        + `<span class="invite-actions">`
+        + `<button type="button" class="primary" data-accept-invite="${escapeHtml(inv.id)}">${escapeHtml(t('accept'))}</button>`
+        + `<button type="button" data-decline-invite="${escapeHtml(inv.id)}">${escapeHtml(t('decline'))}</button>`
+        + `</span></div>`).join('');
+    }
+  }
+}
+
+function setupTeamUI() {
+  const modal = document.getElementById('teamModal');
+  const btn = document.getElementById('teamBtn');
+  if (!modal || !btn) return;
+  btn.addEventListener('click', () => { teamMsg(''); renderTeam(); modal.hidden = false; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
+
+  document.getElementById('inviteBtn').addEventListener('click', async () => {
+    const input = document.getElementById('inviteEmailInput');
+    const email = (input.value || '').trim();
+    if (!email) return;
+    try {
+      teamMsg('');
+      await rpc('invite_to_team', { p_email: email });
+      input.value = '';
+      showToast(t('invited'));
+      await syncTeam(); renderTeam();
+    } catch (e) { teamMsg(e.message); }
+  });
+
+  // Reassign a schedule when the manager changes its member dropdown.
+  modal.addEventListener('change', async e => {
+    const sel = e.target.closest('[data-assign-schedule]');
+    if (!sel) return;
+    const schedId = sel.dataset.assignSchedule;
+    const sched = state.schedules.find(s => s.id === schedId);
+    const val = sel.value;
+    try {
+      teamMsg('');
+      if (val) await rpc('update_schedule', { p_schedule_id: schedId, p_assigned_user_id: val });
+      else await rpc('update_schedule', { p_schedule_id: schedId, p_clear_assignee: true });
+      if (sched) sched.assignedUserId = val || undefined;
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (err) {}
+      render();      // logged-recap vs. actuals-field visibility can change
+      renderTeam();
+    } catch (err) { teamMsg(err.message); }
+  });
+
+  modal.addEventListener('click', async e => {
+    if (e.target.closest('[data-modal-close]')) { modal.hidden = true; return; }
+    const acc = e.target.closest('[data-accept-invite]');
+    const dec = e.target.closest('[data-decline-invite]');
+    if (!acc && !dec) return;
+    const id = acc ? acc.dataset.acceptInvite : dec.dataset.declineInvite;
+    try {
+      teamMsg('');
+      if (acc) {
+        await rpc('accept_invite', { p_invite_id: id });
+        showToast(t('inviteAccepted'));
+        // refresh my profile (now has manager_id) and pull any assigned schedules
+        try { setAuthUserFromProfile(authUser.email, unrow(await rpc('init_profile', { p_email: authUser.email }))); } catch (er) {}
+        await syncTeam();
+        await cloudPull();
+      } else {
+        await rpc('decline_invite', { p_invite_id: id });
+        showToast(t('inviteDeclined'));
+        await syncTeam();
+      }
+      renderTeam();
+      reflectAuth();
+      if (!pendingInvites.length && !(authUser && authUser.role === 'manager')) modal.hidden = true;
+    } catch (err) { teamMsg(err.message); }
+  });
 }
 
 function setupCloudUI() {
@@ -2287,8 +2634,10 @@ function setupCloudUI() {
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try { await authFetch('/sign-out', { method: 'POST', body: '{}' }); } catch (e) {}
     setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0;
+    teamMembers = []; pendingInvites = [];
     reflectAuth(); modal.hidden = true;
   });
+  setupTeamUI();
   restoreSession();
 }
 

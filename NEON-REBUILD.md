@@ -19,15 +19,22 @@ server**. Replaces the scrypt+JWT + Vercel serverless design.
 - [x] **DB layer** — `db/schema.sql`: profiles, schedules, weeks, team_invites + RLS +
       RPCs (init_profile, invite_to_team, accept_invite, decline_invite, create_schedule,
       update_schedule, save_plan, save_actuals). **UNVERIFIED until run on live Neon.**
-- [ ] **Client rewrite** (`index.html`) — the big next chunk:
-      - Account modal -> Neon Auth REST (sign-up/in; store `access_token`; refresh).
-      - Role choice at signup -> `init_profile(p_email, p_role)`.
-      - `cloudPull` -> Data API GETs (`/schedules`, `/weeks`, `/profiles` for the team).
-      - `cloudPush`/saves -> RPC POSTs (`/rpc/save_plan`, `/rpc/save_actuals`, ...).
-      - Manager UI: team panel (invite/accept), assign schedule, member actuals-only mode.
-      - `CLOUD` config -> Data API base URL + Neon Auth base URL.
+- [x] **Client rewrite** (`index.html`) — done in two phases:
+      - **Phase 1 (solo):** Account modal -> Neon Auth REST (sign-up/in; bearer session
+        token; `/token` JWT with refresh-on-401); `cloudPull` -> Data API GETs; `cloudPush`
+        -> RPC POSTs (`create_schedule`/`update_schedule`/`save_plan`); `CLOUD` config set.
+      - **Phase 2 (teams):** role choice at signup -> `init_profile(p_email, p_role)`;
+        profile (role/userId/managerId) loaded on auth + restore; Team modal — manager
+        invites (`invite_to_team`), roster, per-schedule assignment (`update_schedule`
+        assign/clear); member sees/accepts/declines invites (`accept_invite`/`decline_invite`);
+        plan-vs-actuals **write split** — owner edits the plan (`save_plan`), assigned member
+        edits only logged hours (`save_actuals`), enforced in the render + `flushSaves`.
 - [ ] **Verification pass** on live Neon (RLS + each RPC; confirm `auth.user_id()` + grants).
-- [ ] **Decommission** old build: delete `api/*.js`, `vercel.json`; rewrite `BACKEND.md`.
+      Phase 2 logic is unit-tested against the real script with a DOM shim + mocked Neon,
+      but the RPC/RLS round-trips are still UNVERIFIED on live Neon (sandbox egress blocked).
+- [x] **Decommission** old build: `api/*.js`, `vercel.json`, `package.json` removed.
+      *Flag:* `BACKEND.md` + `README.md` still describe the retired Vercel `/api` design —
+      they need a rewrite to the Neon-direct architecture (out of scope for Phase 2).
 
 ## What I need from you
 1. On the KC Neon project: **enable Neon Auth + the Data API** (set the Neon Auth app/
