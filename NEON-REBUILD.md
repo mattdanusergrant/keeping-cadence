@@ -32,9 +32,9 @@ server**. Replaces the scrypt+JWT + Vercel serverless design.
 - [ ] **Verification pass** on live Neon (RLS + each RPC; confirm `auth.user_id()` + grants).
       Phase 2 logic is unit-tested against the real script with a DOM shim + mocked Neon,
       but the RPC/RLS round-trips are still UNVERIFIED on live Neon (sandbox egress blocked).
-- [x] **Decommission** old build: `api/*.js`, `vercel.json`, `package.json` removed.
-      *Flag:* `BACKEND.md` + `README.md` still describe the retired Vercel `/api` design —
-      they need a rewrite to the Neon-direct architecture (out of scope for Phase 2).
+- [x] **Decommission** old build: `api/*.js`, `vercel.json`, `package.json` removed;
+      `.env.example` (server secrets) removed; `BACKEND.md` + `README.md` rewritten to the
+      Neon-direct, server-less architecture.
 
 ## What I need from you
 1. On the KC Neon project: **enable Neon Auth + the Data API** (set the Neon Auth app/

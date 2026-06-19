@@ -1,120 +1,110 @@
-# Keeping Cadence — Backend (Neon + serverless API)
+# Keeping Cadence — Backend (Neon, server-less)
 
-The front-end (`index.html`) runs fully on its own. This backend is an optional
-layer that adds **accounts (user + manager), teams, cross-device sync,
-share-by-slug, and Stripe subscriptions**.
+The front-end (`index.html`) runs fully on its own. The cloud layer adds
+**accounts, cross-device sync, and manager/member teams** (invite people, assign
+schedules, and split the plan from the actual hours). It is **"max-Neon"**: the
+browser talks directly to Neon, with **no custom server**.
 
 ```
-Browser (GitHub Pages)  ──HTTPS──>  Serverless API (/api on Vercel)  ──>  Neon Postgres
-        index.html                    auth · state · team · share · billing    (private)
+Browser (static, on Vercel)
+  ├── Neon Auth  (Better Auth)        login → bearer session token → short-lived JWT
+  ├── Neon Data API (PostgREST)       reads: GET /schedules, /weeks, /profiles, /team_invites  (RLS-filtered)
+  └── Postgres RPCs  (POST /rpc/*)     writes: SECURITY DEFINER functions, authorized via auth.user_id()
 ```
 
-- The browser holds a signed session token (JWT) and sends it as
-  `Authorization: Bearer …`. It never sees the database.
-- The API (`/api/*.js`) holds `DATABASE_URL` as a server-side secret and
-  enforces all access control in code (so we don't depend on Postgres RLS).
+- The browser holds a **session token** (localStorage) from Neon Auth and
+  exchanges it for a short-lived **Data API JWT** (`/token`, refreshed on 401).
+- **Reads** go straight to tables through the Data API; **row-level security**
+  decides what each user can see.
+- **Writes** never touch tables directly — they go through a fixed set of
+  **`SECURITY DEFINER` RPCs** that enforce the roles/teams rules and the
+  plan-vs-actuals split.
+
+> This replaced an earlier design (a Vercel `/api` serverless layer with
+> scrypt+JWT auth). Those files (`api/*.js`, `vercel.json`, `package.json`) have
+> been removed — there is no server to deploy anymore.
 
 ## Accounts & teams
 
-Two account types, both **self-serve** (no app-admin step):
+Two self-serve roles, chosen at sign-up (`init_profile(p_email, p_role)`):
 
-- **Manager** — signs up choosing the manager role, creates schedules, and
-  invites users to their team by email. Sees and edits every team member's
-  schedule (the plan), so the client can overlay them.
-- **User** — signs up as a normal account, accepts a manager's invite, then
-  sees the schedules assigned to them and fills in their **actual hours**.
+- **Manager** — creates schedules, invites users by email, and assigns each
+  schedule to a team member. Authors the **plan**; sees each member's **logged
+  hours** overlaid (plan vs. actual).
+- **User** — accepts a manager's invite, then sees the schedules assigned to them
+  and fills in **actual hours only**. A user with no manager is a **solo**
+  account: the original single-person flow, where one person edits everything.
 
-The split is enforced server-side: the schedule **owner** (a manager, or a solo
-user) edits the plan; the **assigned member** edits only `actualHours` — neither
-can clobber the other. A user with no manager is just a solo account: the
-original single-person flow, unchanged.
+The split is enforced in Postgres: `save_plan` (owner) preserves a member's
+`actualHours`; `save_actuals` (assigned member) preserves the plan. The client
+mirrors it (an assignee sees the plan read-only and edits only hours; a manager
+sees logged hours read-only beside the plan). Anonymous, account-free sharing
+still uses the client-side `#s=` hash link.
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `db/schema.sql` | Postgres schema (run once against Neon) — accounts, roles, teams, schedules, weeks, billing |
-| `api/_lib.js` | Shared: Neon client, JWT, scrypt password hashing, CORS, `getUser` |
-| `api/auth.js` | `signup` (as user or manager) / `login` / `me` |
-| `api/state.js` | `GET`/`PUT` schedules, weeks, settings — role-aware (owner edits the plan, assigned member edits actual hours) |
-| `api/team.js` | Manager ↔ user teams: invite, accept/decline, list members |
-| `api/share.js` | Anonymous read of a schedule by share slug |
-| `api/billing-checkout.js` | Create a Stripe Checkout subscription session |
-| `api/billing-webhook.js` | Stripe webhook → maintains the `subscriptions` table |
-| `.env.example` | The environment variables to set |
+| `db/schema.sql` | The whole backend: `profiles`, `schedules`, `weeks`, `team_invites` + RLS policies + the RPCs + Data API grants. Run once against the Neon project. |
+| `index.html` | Front-end **and** the cloud client (the `CLOUD` block + the auth / Data API / RPC calls). |
+| `NEON-REBUILD.md` | Architecture decision + build status (Phase 1 solo, Phase 2 teams). |
 
 ## Setup
 
-### 1. Neon database
-1. Create a **dedicated** Neon project for Keeping Cadence at <https://neon.tech> — its
-   own project (not shared with Invisible Ink or other apps). KC uses a direct connection
-   only, so **don't enable the Data API or Neon Auth** on it.
-2. Copy the **pooled** connection string (host contains `-pooler`).
-3. Apply the schema:
+### 1. Neon project
+1. Create a **dedicated** Neon project for Keeping Cadence at <https://neon.tech>.
+2. Enable **Neon Auth** and the **Data API** on it. Set the Neon Auth app /
+   display name (and email sender) to **"Keeping Cadence"** so verification /
+   reset emails are branded. Email/password is required; Google sign-in and email
+   verification are optional toggles.
+3. From the project's **Data API** and **Auth** pages, copy the two base URLs
+   (they look like
+   `https://<endpoint>.neonauth.<region>.aws.neon.tech/<db>/auth` and
+   `https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1`).
+4. Apply the schema — paste `db/schema.sql` into the Neon **SQL Editor**, or:
    ```bash
-   psql "postgres://…-pooler…/dbname?sslmode=require" -f db/schema.sql
+   psql "postgres://…/<db>?sslmode=require" -f db/schema.sql
    ```
-   (Or paste `db/schema.sql` into the Neon SQL Editor.)
 
-### 2. Deploy the API (Vercel)
-1. Import this repo at <https://vercel.com/new>.
-2. Add Environment Variables (see `.env.example`):
-   - `DATABASE_URL` — the pooled Neon string
-   - `JWT_SECRET` — any long random string
-   - `ALLOWED_ORIGINS` — `https://mattdanusergrant.github.io`
-3. Deploy. Note the resulting origin, e.g. `https://keeping-cadence.vercel.app`.
-
-### 3. Turn on cloud in the client
-In `index.html`, find the `CLOUD` config near the top of the script and set:
+### 2. Point the client at Neon
+In `index.html`, the `CLOUD` block near the top of the script:
 ```js
-const CLOUD = { enabled: true, apiBase: 'https://keeping-cadence.vercel.app' };
+const CLOUD = {
+  enabled: true,
+  authBase: 'https://<endpoint>.neonauth.<region>.aws.neon.tech/<db>/auth',
+  dataApi:  'https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1',
+};
 ```
-An **Account** button appears in the header; sign up, and edits sync to Neon and
-follow you across devices. (Leaving `enabled: false` keeps the app fully local.)
+These URLs are public — security is enforced by Neon Auth + RLS — so they live in
+the file. Set `enabled: false` to ship the app fully local (no Account button).
 
-### 4. Stripe (optional)
-1. Create a subscription **Product → Price**; copy the price id (`price_…`).
-2. In Vercel add: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
-   `CHECKOUT_SUCCESS_URL`, `CHECKOUT_CANCEL_URL`.
-3. Add a webhook at <https://dashboard.stripe.com/webhooks> pointing to
-   `https://<your-api>/api/billing-webhook`, subscribed to
-   `checkout.session.completed`, `customer.subscription.updated`,
-   `customer.subscription.deleted`. Copy its signing secret into
-   `STRIPE_WEBHOOK_SECRET`.
+### 3. Deploy the static site (Vercel)
+Import the repo at <https://vercel.com/new> and deploy; it serves `index.html` as
+a static page. Production is `app.keepingcadence.com` (with `www` + bare
+`keepingcadence.com` redirecting to it). No environment variables or build step.
 
-Billing endpoints return `503` until these are set, so the rest works without them.
+## RPC reference (POST `/rpc/<name>`, JSON body uses these arg names)
+| Function | Who | Effect |
+|---|---|---|
+| `init_profile(p_email, p_role?)` | any signed-in | Create your profile on first sign-in (idempotent; role set only on creation). |
+| `invite_to_team(p_email)` | manager | Invite a user by email. |
+| `accept_invite(p_invite_id)` / `decline_invite(p_invite_id)` | invitee | Join / dismiss a pending invite. |
+| `create_schedule(p_name, p_color?, p_assigned_user_id?)` | owner (manager to assign) | New schedule. |
+| `update_schedule(p_schedule_id, p_name?, p_color?, p_assigned_user_id?, p_clear_assignee?)` | owner | Rename / recolor / (re)assign. |
+| `delete_schedule(p_schedule_id)` | owner | Delete (its weeks cascade). |
+| `save_plan(p_schedule_id, p_week_start, p_days)` | owner | Write the week's plan; preserves a member's `actualHours`. |
+| `save_actuals(p_schedule_id, p_week_start, p_actuals)` | assigned member | Write only the week's actual hours; preserves the plan. |
 
-### 5. Rename the GitHub repo (one-time)
-To make `https://mattdanusergrant.github.io/keeping-cadence/` live:
-1. GitHub → repo **Settings → General → Rename** to `keeping-cadence`.
-2. **Settings → Pages** → confirm the branch/folder; the new URL appears.
-3. GitHub auto-redirects the old `…/scheduler/` git remote, but update any
-   bookmarks. The site card already points at the new URL.
+## Verify (against live Neon)
+The schema + client logic are unit-tested, but do a first live pass after
+provisioning:
+- [ ] Sign up (as **user** and as **manager**) → `init_profile` returns your row; reload keeps you signed in.
+- [ ] Solo: create a schedule, edit a day, reload on another device → it syncs.
+- [ ] Manager invites a user's email → that user sees the invite, accepts, and appears in the manager's roster.
+- [ ] Manager assigns a schedule → the user sees it, can set actual hours but **not** the plan; the manager sees the logged hours.
+- [ ] RLS: a user cannot read another team's schedules; each RPC rejects callers who aren't the owner / assignee.
 
-## Verify (after provisioning)
-This backend was authored without a live Neon/Vercel/Stripe to run against, so do
-a first pass:
-- [ ] `POST /api/auth?action=signup` returns `{ user, token }`
-- [ ] With `CLOUD.enabled`, sign up → edit a day → reload on another device → it syncs
-- [ ] Sign up as a **manager**, invite a user's email; that user sees the invite via
-      `GET /api/team?action=invites`, accepts, and appears in `GET /api/team?action=team`
-- [ ] Manager assigns a schedule to the user; the user can set `actualHours` but not the plan
-- [ ] `GET /api/share?slug=…` returns a schedule for a known slug
-- [ ] A Stripe test checkout flips `subscriptions.status` to `active` via the webhook
-
-## API reference
-| Method & path | Auth | Body / query | Returns |
-|---|---|---|---|
-| `POST /api/auth?action=signup` | — | `{email,password,role?}` | `{user,token}` |
-| `POST /api/auth?action=login` | — | `{email,password}` | `{user,token}` |
-| `GET /api/auth?action=me` | Bearer | — | `{user}` (incl. `role`, `managerId`) |
-| `GET /api/state?week=YYYY-MM-DD` | Bearer | — | `{schedules,weeks,settings,subscription}` — each schedule carries `access` (`plan`\|`actuals`) + `assignedUserId` |
-| `PUT /api/state` | Bearer | `{weekStart,schedules:[{…,assignedUserId?,days}],settings}` | `{schedules:[{localId,id,slug}]}` |
-| `GET /api/team?action=team` | Bearer (manager) | — | `{users:[{id,email}]}` |
-| `POST /api/team?action=invite` | Bearer (manager) | `{email}` | `{ok}` |
-| `GET /api/team?action=invites` | Bearer (user) | — | `{invites:[{id,managerEmail}]}` |
-| `POST /api/team?action=accept` | Bearer (user) | `{inviteId}` | `{ok,managerId}` |
-| `POST /api/team?action=decline` | Bearer (user) | `{inviteId}` | `{ok}` |
-| `GET /api/share?slug=…&from&to` | — | — | `{schedule,weeks}` |
-| `POST /api/billing-checkout` | Bearer | — | `{url}` |
-| `POST /api/billing-webhook` | Stripe sig | raw event | `{received:true}` |
+## Deferred
+**Billing (Stripe).** Neon can't receive webhooks, so subscriptions would need
+one small serverless function (the only server this design would ever add).
+Deferred until the product is monetized.
