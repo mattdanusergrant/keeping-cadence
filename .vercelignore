@@ -1,0 +1,12 @@
+# The old serverless backend (scrypt auth + Stripe) is superseded by the
+# browser -> Neon (Data API + Neon Auth) architecture. Keep it in the repo for
+# history, but do NOT deploy it. The deployed app is just index.html.
+api
+vercel.json
+package.json
+package-lock.json
+
+# Repo docs and DB schema are not part of the deployed app.
+db
+.env.example
+*.md
