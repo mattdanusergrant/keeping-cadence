@@ -218,9 +218,20 @@ end $$;
 -- ===========================================================================
 -- Grants for the Data API roles. Reads = SELECT (RLS-filtered); every write
 -- goes through an RPC (no direct INSERT/UPDATE/DELETE granted to authenticated).
+-- Grant EXECUTE on exactly our 8 RPCs (not a catch-all, which would warn on
+-- pgcrypto's extension functions and over-grant).
 -- ===========================================================================
 grant usage on schema public to authenticated;
 grant select on profiles, schedules, weeks, team_invites to authenticated;
-grant execute on all functions in schema public to authenticated;
+grant execute on function
+  init_profile(text, text),
+  invite_to_team(text),
+  accept_invite(uuid),
+  decline_invite(uuid),
+  create_schedule(text, text, text),
+  update_schedule(uuid, text, text, text, boolean),
+  save_plan(uuid, date, jsonb),
+  save_actuals(uuid, date, jsonb)
+to authenticated;
 
 notify pgrst, 'reload schema';
