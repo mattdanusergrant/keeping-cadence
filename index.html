@@ -1318,7 +1318,7 @@ function fmtTime(hhmm) {
   if (isNaN(d.getTime())) return '';
   const formatted = d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
   if (lang === 'en') {
-    return formatted.replace(/[\s  ]*[AaPp]\.?[Mm]\.?/g, '').trim();
+    return formatted.replace(/[\s  ]*[AaPp]\.?[Mm]\.?/g, '').trim();
   }
   return formatted;
 }
