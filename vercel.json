@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "keepingcadence.com" }], "destination": "/landing.html" },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "www.keepingcadence.com" }], "destination": "/landing.html" }
+  ]
+}
