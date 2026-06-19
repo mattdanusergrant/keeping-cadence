@@ -1,6 +1,6 @@
 # Keeping Cadence — Backend (Neon, server-less)
 
-The front-end (`index.html`) runs fully on its own. The cloud layer adds
+The front-end (`app.html`) runs fully on its own. The cloud layer adds
 **accounts, cross-device sync, and manager/member teams** (invite people, assign
 schedules, and split the plan from the actual hours). It is **"max-Neon"**: the
 browser talks directly to Neon, with **no custom server**.
@@ -46,7 +46,7 @@ still uses the client-side `#s=` hash link.
 | Path | Purpose |
 |---|---|
 | `db/schema.sql` | The whole backend: `profiles`, `schedules`, `weeks`, `team_invites` + RLS policies + the RPCs + Data API grants. Run once against the Neon project. |
-| `index.html` | Front-end **and** the cloud client (the `CLOUD` block + the auth / Data API / RPC calls). |
+| `app.html` | Front-end **and** the cloud client (the `CLOUD` block + the auth / Data API / RPC calls). |
 | `NEON-REBUILD.md` | Architecture decision + build status (Phase 1 solo, Phase 2 teams). |
 
 ## Setup
@@ -67,7 +67,7 @@ still uses the client-side `#s=` hash link.
    ```
 
 ### 2. Point the client at Neon
-In `index.html`, the `CLOUD` block near the top of the script:
+In `app.html`, the `CLOUD` block near the top of the script:
 ```js
 const CLOUD = {
   enabled: true,
@@ -79,9 +79,22 @@ These URLs are public — security is enforced by Neon Auth + RLS — so they li
 the file. Set `enabled: false` to ship the app fully local (no Account button).
 
 ### 3. Deploy the static site (Vercel)
-Import the repo at <https://vercel.com/new> and deploy; it serves `index.html` as
-a static page. Production is `app.keepingcadence.com` (with `www` + bare
-`keepingcadence.com` redirecting to it). No environment variables or build step.
+Import the repo at <https://vercel.com/new> and deploy. No environment variables
+or build step.
+
+**Domains & routing (one project, two surfaces).** All three hostnames are added
+to the same Vercel project (no redirects between them); `vercel.json` routes by
+host:
+- `app.keepingcadence.com` → the app (`app.html`)
+- `keepingcadence.com` + `www.keepingcadence.com` → the marketing page (`landing.html`)
+
+The app is **not** named `index.html` on purpose: Vercel serves a static file at
+`/` *before* it evaluates `vercel.json` rewrites, so an `index.html` at the root
+would be returned on every host and the host rules could never run. With no file
+at `/`, the rewrites decide: marketing hosts get `landing.html`, and the final
+catch-all (`/(.*)` → `/app.html`) serves the app for `app.` and every other host
+(previews, `*.vercel.app`) — so a host-match miss can only fail to show the
+landing, never break the app.
 
 ## RPC reference (POST `/rpc/<name>`, JSON body uses these arg names)
 | Function | Who | Effect |

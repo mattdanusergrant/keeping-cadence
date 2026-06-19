@@ -7,7 +7,7 @@ Live at: https://app.keepingcadence.com
 
 ## Shape
 
-- **Front-end** — a single self-contained `index.html` (HTML + CSS + vanilla JS,
+- **Front-end** — a single self-contained `app.html` (HTML + CSS + vanilla JS,
   no build step). Works fully offline using `localStorage` + URL-hash share
   links. Served as a static page on **Vercel**.
 - **Cloud (accounts + teams)** — the browser talks **directly to Neon**: **Neon
@@ -18,6 +18,6 @@ Live at: https://app.keepingcadence.com
   **[BACKEND.md](BACKEND.md)** for setup and **[NEON-REBUILD.md](NEON-REBUILD.md)**
   for the architecture and build status.
 
-Cloud is configured in the `CLOUD` block near the top of `index.html`'s script
+Cloud is configured in the `CLOUD` block near the top of `app.html`'s script
 (`authBase` + `dataApi`). Signed out, the app stays fully local; anonymous
 sharing always uses the client-side `#s=` hash link (no server involved).

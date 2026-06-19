@@ -19,7 +19,7 @@ server**. Replaces the scrypt+JWT + Vercel serverless design.
 - [x] **DB layer** — `db/schema.sql`: profiles, schedules, weeks, team_invites + RLS +
       RPCs (init_profile, invite_to_team, accept_invite, decline_invite, create_schedule,
       update_schedule, save_plan, save_actuals). **UNVERIFIED until run on live Neon.**
-- [x] **Client rewrite** (`index.html`) — done in two phases:
+- [x] **Client rewrite** (`app.html`, formerly `index.html`) — done in two phases:
       - **Phase 1 (solo):** Account modal -> Neon Auth REST (sign-up/in; bearer session
         token; `/token` JWT with refresh-on-401); `cloudPull` -> Data API GETs; `cloudPush`
         -> RPC POSTs (`create_schedule`/`update_schedule`/`save_plan`); `CLOUD` config set.
