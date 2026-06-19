@@ -760,11 +760,15 @@ try {
     });
 } catch (e) {}
 
-// Cloud sync (optional). Flip enabled to true and set apiBase to your deployed
-// API origin (e.g. 'https://keeping-cadence.vercel.app') to turn on accounts
-// and cross-device sync. Left off, the app stays fully local and unchanged.
-const CLOUD = { enabled: false, apiBase: '' };
-const TOKEN_KEY = 'keeping-cadence-token';
+// Cloud sync via Neon (Neon Auth + Data API). enabled:true turns on accounts +
+// cross-device sync; signed out, the app stays fully local. These URLs are
+// public — security is enforced by Neon Auth + Postgres RLS — so they live here.
+const CLOUD = {
+  enabled: true,
+  authBase: 'https://ep-tiny-sun-a6wesvb9.neonauth.us-west-2.aws.neon.tech/neondb/auth',
+  dataApi:  'https://ep-tiny-sun-a6wesvb9.apirest.us-west-2.aws.neon.tech/neondb/rest/v1',
+};
+const SESSION_KEY = 'keeping-cadence-session';
 let authUser = null;
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
@@ -1314,7 +1318,7 @@ function fmtTime(hhmm) {
   if (isNaN(d.getTime())) return '';
   const formatted = d.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
   if (lang === 'en') {
-    return formatted.replace(/[\s  ]*[AaPp]\.?[Mm]\.?/g, '').trim();
+    return formatted.replace(/[\s  ]*[AaPp]\.?[Mm]\.?/g, '').trim();
   }
   return formatted;
 }
@@ -2127,63 +2131,98 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 });
 
 // ---- Cloud sync (optional; gated by CLOUD.enabled) ------------------------
-function authToken() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
-function setAuthToken(tk) {
-  try { tk ? localStorage.setItem(TOKEN_KEY, tk) : localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+function sessionToken() { try { return localStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
+function setSessionToken(tk) {
+  try { tk ? localStorage.setItem(SESSION_KEY, tk) : localStorage.removeItem(SESSION_KEY); } catch (e) {}
 }
 
-async function apiFetch(path, opts = {}) {
+// Neon Auth (Better Auth). Durable login = a session token (bearer plugin) in
+// localStorage, so it survives third-party-cookie blocking on cross-origin.
+async function authFetch(path, opts = {}) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
-  const tk = authToken();
-  if (tk) headers['Authorization'] = 'Bearer ' + tk;
-  const res = await fetch(CLOUD.apiBase + path, Object.assign({}, opts, { headers }));
+  const st = sessionToken();
+  if (st) headers['Authorization'] = 'Bearer ' + st;
+  const res = await fetch(CLOUD.authBase + path, Object.assign({ credentials: 'include' }, opts, { headers }));
+  const setTok = res.headers.get('set-auth-token');
+  if (setTok) setSessionToken(setTok);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  if (!res.ok) throw new Error((data && (data.message || data.error)) || ('HTTP ' + res.status));
   return data;
+}
+
+// Short-lived Data API JWT, fetched from {authBase}/token; refreshed on expiry/401.
+let dataJwt = null, dataJwtExp = 0;
+async function getDataJwt(force) {
+  if (!force && dataJwt && Date.now() < dataJwtExp) return dataJwt;
+  const d = await authFetch('/token', { method: 'GET' });
+  if (!d || !d.token) throw new Error('No Data API token returned');
+  dataJwt = d.token; dataJwtExp = Date.now() + 13 * 60 * 1000;
+  return dataJwt;
+}
+
+// Neon Data API (PostgREST). Retries once with a fresh JWT on 401.
+async function dapi(path, opts = {}, _retry) {
+  const jwt = await getDataJwt();
+  const headers = Object.assign({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt }, opts.headers || {});
+  const res = await fetch(CLOUD.dataApi + path, Object.assign({}, opts, { headers }));
+  if (res.status === 401 && !_retry) { await getDataJwt(true); return dapi(path, opts, true); }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && (data.message || data.hint)) || ('Data API HTTP ' + res.status));
+  return data;
+}
+function rpc(name, args) { return dapi('/rpc/' + name, { method: 'POST', body: JSON.stringify(args || {}) }); }
+function isServerId(v) { return /^[0-9a-f-]{36}$/i.test(String(v)); }
+function scheduleHasContent(s) {
+  return s.days && s.days.some(d => (d.title && d.title.trim()) || (d.plan && d.plan.trim()) ||
+    d.start || d.end || d.startBuffer || d.endBuffer || (d.actualHours !== '' && d.actualHours != null));
 }
 
 let cloudTimer = null;
 function cloudPush() {
   if (!CLOUD.enabled || !authUser) return;
   if (cloudTimer) clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(async () => {
+  cloudTimer = setTimeout(flushSaves, 1200);
+}
+async function flushSaves() {
+  if (!CLOUD.enabled || !authUser) return;
+  const week = state.weekStart;
+  for (const s of state.schedules.slice()) {
     try {
-      const payload = {
-        weekStart: state.weekStart,
-        schedules: state.schedules.map(s => ({ id: s.id, name: s.name, colorVar: s.colorVar, days: s.days })),
-        settings
-      };
-      const res = await apiFetch('/api/state', { method: 'PUT', body: JSON.stringify(payload) });
-      const idMap = {};
-      (res.schedules || []).forEach(m => {
-        const sc = state.schedules.find(x => x.id === m.localId);
-        if (sc && sc.id !== m.id) { idMap[sc.id] = m.id; sc.id = m.id; }
-      });
-      if (state.activeId && idMap[state.activeId]) state.activeId = idMap[state.activeId];
-      if (Object.keys(idMap).length) {
-        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) {}
+      let id = s.id;
+      if (!isServerId(id)) {
+        // local-only schedule: create it server-side, then adopt the real id
+        const created = await rpc('create_schedule', { p_name: s.name, p_color: s.colorVar });
+        const row = Array.isArray(created) ? created[0] : created;
+        if (row && row.id) {
+          if (state.activeId === s.id) state.activeId = row.id;
+          s.id = row.id; id = row.id;
+          try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) {}
+        }
+      } else {
+        await rpc('update_schedule', { p_schedule_id: id, p_name: s.name, p_color: s.colorVar });
       }
-    } catch (e) { /* offline / error: the local draft remains the source of truth */ }
-  }, 1200);
+      await rpc('save_plan', { p_schedule_id: id, p_week_start: week, p_days: s.days });
+    } catch (e) { /* offline/error: the local draft remains the source of truth */ }
+  }
 }
 
 async function cloudPull() {
-  if (!CLOUD.enabled || !authUser) return;
-  const data = await apiFetch('/api/state?week=' + encodeURIComponent(state.weekStart));
-  if (data.schedules && data.schedules.length) {
-    const schedules = data.schedules.map(s => ({
-      id: s.id, name: s.name, colorVar: s.colorVar,
-      days: (data.weeks && data.weeks[s.id]) ? data.weeks[s.id] : Array.from({ length: 7 }, () => emptyDay())
+  if (!CLOUD.enabled || !authUser) return 0;
+  const scheds = await dapi('/schedules?select=id,name,color_var,owner_id,assigned_user_id&order=created_at.asc');
+  if (Array.isArray(scheds) && scheds.length) {
+    const inList = '(' + scheds.map(s => s.id).join(',') + ')';
+    const weeks = await dapi('/weeks?select=schedule_id,days&week_start=eq.' +
+      encodeURIComponent(state.weekStart) + '&schedule_id=in.' + inList);
+    const byId = {}; (weeks || []).forEach(w => { byId[w.schedule_id] = w.days; });
+    const schedules = scheds.map(s => ({
+      id: s.id, name: s.name, colorVar: s.color_var || 'accent',
+      days: Array.isArray(byId[s.id]) && byId[s.id].length === 7
+        ? byId[s.id].map(normalizeDay) : Array.from({ length: 7 }, () => emptyDay())
     }));
     const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: schedules[0].id });
-    if (migrated) state = migrated;
+    if (migrated) { state = migrated; render(); }
   }
-  if (data.settings && typeof data.settings === 'object') {
-    settings = Object.assign({}, settings, data.settings);
-    saveSettings(settings);
-    applyTheme(settings.theme, settings.mode);
-  }
-  render();
+  return Array.isArray(scheds) ? scheds.length : 0;
 }
 
 function reflectAuth() {
@@ -2201,17 +2240,32 @@ function reflectAuth() {
 async function doAuth(action) {
   const email = document.getElementById('acctEmail').value.trim();
   const password = document.getElementById('acctPassword').value;
-  const data = await apiFetch('/api/auth?action=' + action, { method: 'POST', body: JSON.stringify({ email, password }) });
-  setAuthToken(data.token);
-  authUser = data.user;
-  await cloudPull();
+  if (!email || !password) throw new Error('Enter an email and password');
+  if (action === 'signup') {
+    await authFetch('/sign-up/email', { method: 'POST', body: JSON.stringify({ email, password, name: email }) });
+    if (!sessionToken()) await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
+  } else {
+    await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
+  }
+  await getDataJwt(true);
+  try { await rpc('init_profile', { p_email: email }); } catch (e) {}
+  authUser = { email };
+  const hadLocal = state.schedules && state.schedules.some(scheduleHasContent);
+  const n = await cloudPull();
+  if (n === 0 && hadLocal) cloudPush();   // move pre-account local work into the new account
   reflectAuth();
 }
 
 async function restoreSession() {
-  if (!CLOUD.enabled || openedFromShare || !authToken()) { reflectAuth(); return; }
-  try { const d = await apiFetch('/api/auth?action=me'); authUser = d.user; await cloudPull(); }
-  catch (e) { setAuthToken(null); authUser = null; }
+  if (!CLOUD.enabled || openedFromShare || !sessionToken()) { reflectAuth(); return; }
+  try {
+    const s = await authFetch('/get-session', { method: 'GET' });
+    const u = s && (s.user || (s.session && s.session.user));
+    if (!u || !u.email) throw new Error('no session');
+    authUser = { email: u.email };
+    await getDataJwt(true);
+    await cloudPull();
+  } catch (e) { setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0; }
   reflectAuth();
 }
 
@@ -2224,16 +2278,16 @@ function setupCloudUI() {
   btn.addEventListener('click', () => { reflectAuth(); msg(''); modal.hidden = false; });
   modal.addEventListener('click', e => { if (e.target.closest('[data-modal-close]')) modal.hidden = true; });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
-  document.getElementById('loginBtn').addEventListener('click', async () => {
-    try { msg(''); await doAuth('login'); modal.hidden = true; showToast(t('signedIn')); }
+  const run = action => async () => {
+    try { msg('Working…'); await doAuth(action); modal.hidden = true; showToast(t('signedIn')); }
     catch (e) { msg(e.message); }
-  });
-  document.getElementById('signupBtn').addEventListener('click', async () => {
-    try { msg(''); await doAuth('signup'); modal.hidden = true; showToast(t('signedIn')); }
-    catch (e) { msg(e.message); }
-  });
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    setAuthToken(null); authUser = null; reflectAuth(); modal.hidden = true;
+  };
+  document.getElementById('loginBtn').addEventListener('click', run('login'));
+  document.getElementById('signupBtn').addEventListener('click', run('signup'));
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try { await authFetch('/sign-out', { method: 'POST', body: '{}' }); } catch (e) {}
+    setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0;
+    reflectAuth(); modal.hidden = true;
   });
   restoreSession();
 }
