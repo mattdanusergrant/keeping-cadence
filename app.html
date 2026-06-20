@@ -166,9 +166,9 @@
   .day-track-grid .day-track-spacer .dt,
   .day-track-grid .day-track-date .dt {
     font-weight: 500;
-    color: var(--accent-gold);
+    color: var(--muted);
   }
-  .day.today .day-track-date .dn { color: var(--warning); }
+  .day.today .day-track-date .dn { color: var(--accent); }
   .day-track-axis {
     position: relative; height: 0.85rem;
   }
@@ -218,12 +218,12 @@
   .day::before {
     content: ''; position: absolute;
     left: 0; top: 0; bottom: 0;
-    width: 4px; background: var(--warning);
+    width: 4px; background: var(--accent);
     opacity: 0.5;
   }
   .day.today { background: var(--today-bg); }
   .day.today::before { opacity: 1; }
-  .day.today .day-name { color: var(--accent-gold); }
+  .day.today .day-name { color: var(--accent); }
   .day-line {
     display: flex; align-items: baseline;
     gap: 0.5rem;
@@ -234,7 +234,7 @@
     font-size: 0.95rem;
   }
   .day-line .sep { color: var(--muted); font-weight: 300; }
-  .day-line .day-date { color: var(--accent-gold); font-weight: 500; }
+  .day-line .day-date { color: var(--muted); font-weight: 500; }
   .day-line .day-name { font-weight: 600; }
   .day-line .day-times {
     overflow: hidden; text-overflow: ellipsis;
