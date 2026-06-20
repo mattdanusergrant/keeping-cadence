@@ -7,39 +7,39 @@
 <!-- #LLM-generated -->
 <style>
   :root {
-    /* Standard — light. Minimal neutral base; vivid, distinct schedule
-       highlights (h1–h10). Mirrors THEMES.standard.light (JS applies it live;
-       this is the flash-free default before JS runs). */
+    /* Colour-blind-safe — light. Minimal neutral base; Okabe–Ito highlights
+       (h1–h10). Mirrors PALETTE.light (JS applies it live; this is the
+       flash-free default before JS runs). */
     --bg: #fafafa;
     --card: #ffffff;
     --ink: #1c1c1e;
     --muted: #6e6e73;
-    --accent: #3a3f4b;
-    --accent-gold: #9a7b3f;
-    --warning: #c0392b;
+    --accent: #0072b2;
+    --accent-gold: #9a7d00;
+    --warning: #d55e00;
     --border: #e6e4df;
     --on-accent: #ffffff;
-    --today-bg: rgba(154, 123, 63, 0.08);
+    --today-bg: rgba(0, 114, 178, 0.07);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --h1: #c0392b; --h2: #d35400; --h3: #a98000; --h4: #2e8b40; --h5: #0e8a8a;
-    --h6: #1f6fb2; --h7: #3f51b5; --h8: #7b3fb5; --h9: #b03a72; --h10: #7a5240;
+    --h1: #0072b2; --h2: #d55e00; --h3: #009e73; --h4: #e69f00; --h5: #2f9bd6;
+    --h6: #cc79a7; --h7: #9a7d00; --h8: #1a1a1a; --h9: #7a7a7a; --h10: #6b4f3a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      /* Standard — dark. */
+      /* Colour-blind-safe — dark. */
       --bg: #161618;
       --card: #1f1f22;
       --ink: #ececf0;
       --muted: #9a9aa2;
-      --accent: #e6e6ea;
-      --accent-gold: #c9a24e;
-      --warning: #e06b62;
+      --accent: #4aa6e0;
+      --accent-gold: #f0d65a;
+      --warning: #ff7a3d;
       --border: #2c2c30;
-      --on-accent: #161618;
-      --today-bg: rgba(201, 162, 78, 0.10);
+      --on-accent: #08121a;
+      --today-bg: rgba(74, 166, 224, 0.10);
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-      --h1: #ff6b6b; --h2: #ff922b; --h3: #ffd43b; --h4: #51cf66; --h5: #20c997;
-      --h6: #4dabf7; --h7: #748ffc; --h8: #b197fc; --h9: #f06595; --h10: #c9a27e;
+      --h1: #4aa6e0; --h2: #ff7a3d; --h3: #2bbf93; --h4: #f0a830; --h5: #7cc7f0;
+      --h6: #e29ac4; --h7: #f0e442; --h8: #f5f5f5; --h9: #b0b0b0; --h10: #c2a07a;
     }
   }
   * { box-sizing: border-box; }
@@ -620,7 +620,7 @@
         <button id="teamBtn" type="button" hidden>Team</button>
         <button id="accountBtn" type="button" hidden data-i18n="signIn">Sign in</button>
         <button id="shareBtn" data-i18n="share">Share</button>
-        <button id="settingsBtn" type="button" data-i18n-aria-label="settings" aria-label="Settings">⚙</button>
+        <button id="modeToggleBtn" type="button" data-i18n-aria-label="darkModeToggle" aria-label="Toggle dark mode">☾</button>
         <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
       </div>
     </div>
@@ -717,30 +717,6 @@
   </div>
 </div>
 
-<div class="modal" id="settingsModal" hidden>
-  <div class="modal-backdrop" data-modal-close></div>
-  <div class="modal-card" role="dialog" aria-labelledby="settingsHeading">
-    <h2 id="settingsHeading" data-i18n="settingsTitle">Settings</h2>
-    <div class="setting-row">
-      <label for="setTheme" data-i18n="colorTheme">Color theme</label>
-      <select id="setTheme"></select>
-    </div>
-    <div class="setting-row">
-      <label for="setMode" data-i18n="modeLabel">Mode</label>
-      <select id="setMode">
-        <option value="auto" data-i18n="modeAuto">Auto (system)</option>
-        <option value="light" data-i18n="modeLight">Light</option>
-        <option value="dark" data-i18n="modeDark">Dark</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button id="settingsResetBtn" type="button" data-i18n="reset">Reset</button>
-      <button id="settingsCancelBtn" type="button" data-modal-close data-i18n="cancel">Cancel</button>
-      <button id="settingsSaveBtn" type="button" class="primary" data-i18n="save">Save</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal" id="helpModal" hidden>
   <div class="modal-backdrop" data-modal-close></div>
   <div class="modal-card help-card" role="dialog" aria-labelledby="helpHeading">
@@ -765,7 +741,7 @@
       <p data-i18n="helpEditBody"></p>
     </div>
     <div class="help-section">
-      <h3 data-i18n="helpSettingsTitle">Settings</h3>
+      <h3 data-i18n="helpSettingsTitle">Dark mode</h3>
       <p data-i18n="helpSettingsBody"></p>
     </div>
     <div class="modal-actions">
@@ -803,74 +779,60 @@ let teamMembers = [];         // manager's roster: [{ userId, email }]
 let pendingInvites = [];      // invites addressed to me: [{ id, manager_id }]
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
-  theme: 'standard',
   mode: 'auto'
 };
 // Fixed daily window: the hours selectable in the dropdowns and the span of the timeline axis.
 const DAY_START = '06:00';
 const DAY_END = '22:00';
 
-// Two themes, each with a light + dark palette (the Mode toggle picks which).
-// Base is minimal/neutral; the schedule "highlights" are a dedicated h1–h10 set
-// (SCHEDULE_COLOR_VARS), kept separate from the chrome accents so they can be
-// many and vivid. accent/accent-gold/warning stay as restrained chrome
-// (buttons, "today" emphasis, invalid times).
-const THEMES = {
-  standard: {
-    label: { en: 'Standard', es: 'Estándar' },
-    light: {
-      bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
-      accent: '#3a3f4b', 'accent-gold': '#9a7b3f',
-      warning: '#c0392b', border: '#e6e4df', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(154, 123, 63, 0.08)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-      h1: '#c0392b', h2: '#d35400', h3: '#a98000', h4: '#2e8b40', h5: '#0e8a8a',
-      h6: '#1f6fb2', h7: '#3f51b5', h8: '#7b3fb5', h9: '#b03a72', h10: '#7a5240'
-    },
-    dark: {
-      bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
-      accent: '#e6e6ea', 'accent-gold': '#c9a24e',
-      warning: '#e06b62', border: '#2c2c30', 'on-accent': '#161618',
-      'today-bg': 'rgba(201, 162, 78, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-      h1: '#ff6b6b', h2: '#ff922b', h3: '#ffd43b', h4: '#51cf66', h5: '#20c997',
-      h6: '#4dabf7', h7: '#748ffc', h8: '#b197fc', h9: '#f06595', h10: '#c9a27e'
-    }
+// Colour-blind-safe palette, one light + one dark (the header toggle picks
+// which). Base is minimal/neutral; the schedule "highlights" (h1–h10,
+// SCHEDULE_COLOR_VARS) use the Okabe–Ito colour-blind-safe set plus two
+// lightness-distinct neutrals (h9–h10), kept separate from the chrome accents
+// (accent/accent-gold/warning) so they can be many and distinct.
+const PALETTE = {
+  light: {
+    bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
+    accent: '#0072b2', 'accent-gold': '#9a7d00',
+    warning: '#d55e00', border: '#e6e4df', 'on-accent': '#ffffff',
+    'today-bg': 'rgba(0, 114, 178, 0.07)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+    h1: '#0072b2', h2: '#d55e00', h3: '#009e73', h4: '#e69f00', h5: '#2f9bd6',
+    h6: '#cc79a7', h7: '#9a7d00', h8: '#1a1a1a', h9: '#7a7a7a', h10: '#6b4f3a'
   },
-  colorblind: {
-    label: { en: 'Colorblind', es: 'Daltónico' },
-    // Highlights use the Okabe–Ito colour-blind-safe palette (h1–h8), tuned per
-    // mode for legibility, plus two lightness-distinct neutrals (h9–h10) so the
-    // 9th/10th schedules stay distinguishable under any colour-vision deficiency.
-    light: {
-      bg: '#fafafa', card: '#ffffff', ink: '#1c1c1e', muted: '#6e6e73',
-      accent: '#0072b2', 'accent-gold': '#9a7d00',
-      warning: '#d55e00', border: '#e6e4df', 'on-accent': '#ffffff',
-      'today-bg': 'rgba(0, 114, 178, 0.07)', shadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-      h1: '#0072b2', h2: '#d55e00', h3: '#009e73', h4: '#e69f00', h5: '#2f9bd6',
-      h6: '#cc79a7', h7: '#9a7d00', h8: '#1a1a1a', h9: '#7a7a7a', h10: '#6b4f3a'
-    },
-    dark: {
-      bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
-      accent: '#4aa6e0', 'accent-gold': '#f0d65a',
-      warning: '#ff7a3d', border: '#2c2c30', 'on-accent': '#08121a',
-      'today-bg': 'rgba(74, 166, 224, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-      h1: '#4aa6e0', h2: '#ff7a3d', h3: '#2bbf93', h4: '#f0a830', h5: '#7cc7f0',
-      h6: '#e29ac4', h7: '#f0e442', h8: '#f5f5f5', h9: '#b0b0b0', h10: '#c2a07a'
-    }
+  dark: {
+    bg: '#161618', card: '#1f1f22', ink: '#ececf0', muted: '#9a9aa2',
+    accent: '#4aa6e0', 'accent-gold': '#f0d65a',
+    warning: '#ff7a3d', border: '#2c2c30', 'on-accent': '#08121a',
+    'today-bg': 'rgba(74, 166, 224, 0.10)', shadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+    h1: '#4aa6e0', h2: '#ff7a3d', h3: '#2bbf93', h4: '#f0a830', h5: '#7cc7f0',
+    h6: '#e29ac4', h7: '#f0e442', h8: '#f5f5f5', h9: '#b0b0b0', h10: '#c2a07a'
   }
 };
 
-function applyTheme(themeName, mode) {
-  const theme = THEMES[themeName] || THEMES.standard;
-  const effectiveMode = mode || (settings && settings.mode) || 'auto';
-  let isDark;
-  if (effectiveMode === 'light') isDark = false;
-  else if (effectiveMode === 'dark') isDark = true;
-  else isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const palette = isDark ? theme.dark : theme.light;
+function prefersDark() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+// Resolve the active mode: an explicit light/dark choice wins; otherwise follow the system.
+function effectiveDark() {
+  if (settings && settings.mode === 'light') return false;
+  if (settings && settings.mode === 'dark') return true;
+  return prefersDark();
+}
+
+function applyTheme() {
+  const isDark = effectiveDark();
+  const palette = isDark ? PALETTE.dark : PALETTE.light;
   const root = document.documentElement;
   for (const [k, v] of Object.entries(palette)) {
     root.style.setProperty('--' + k, v);
   }
+  updateModeToggle(isDark);
+}
+
+function updateModeToggle(isDark) {
+  const btn = document.getElementById('modeToggleBtn');
+  if (btn) btn.textContent = isDark ? '☼' : '☾';
 }
 
 const T = {
@@ -890,16 +852,9 @@ const T = {
     toggleLanguage: 'Toggle language',
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
-    settings: 'Settings',
-    settingsTitle: 'Settings',
-    colorTheme: 'Color theme',
-    modeLabel: 'Mode',
-    modeAuto: 'Auto (system)',
-    modeLight: 'Light',
-    modeDark: 'Dark',
+    darkModeToggle: 'Toggle dark mode',
     save: 'Save',
     cancel: 'Cancel',
-    reset: 'Reset',
     weekOf: 'Week of',
     hours: 'Hours',
     dayOff: 'Day Off',
@@ -921,8 +876,8 @@ const T = {
     helpTodayBody: "The current day stands out with a brighter red line on the left edge and a soft background tint.",
     helpEditTitle: 'Editing a day',
     helpEditBody: "Tap 'Edit' at the top right, change the times in the dropdowns, log how many hours were actually worked, then tap 'Done' to save.",
-    helpSettingsTitle: 'Settings',
-    helpSettingsBody: "The 'Settings' button (top right) lets you change the color theme and switch between light and dark mode.",
+    helpSettingsTitle: 'Dark mode',
+    helpSettingsBody: "The button in the top-right corner toggles between light and dark.",
     close: 'Close',
     saving: 'Saving…',
     saved: 'Saved',
@@ -981,16 +936,9 @@ const T = {
     toggleLanguage: 'Cambiar idioma',
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
-    settings: 'Ajustes',
-    settingsTitle: 'Ajustes',
-    colorTheme: 'Tema de color',
-    modeLabel: 'Modo',
-    modeAuto: 'Automático (sistema)',
-    modeLight: 'Claro',
-    modeDark: 'Oscuro',
+    darkModeToggle: 'Cambiar modo oscuro',
     save: 'Guardar',
     cancel: 'Cancelar',
-    reset: 'Restablecer',
     weekOf: 'Semana del',
     hours: 'Horas',
     dayOff: 'Día libre',
@@ -1012,8 +960,8 @@ const T = {
     helpTodayBody: "El día actual se destaca con una línea roja más brillante a la izquierda y un fondo ligeramente tintado.",
     helpEditTitle: 'Editar un día',
     helpEditBody: "Toca 'Editar' arriba a la derecha, cambia las horas en los menús, registra cuántas horas se trabajaron realmente y toca 'Listo' para guardar.",
-    helpSettingsTitle: 'Ajustes',
-    helpSettingsBody: "El botón 'Ajustes' (arriba a la derecha) permite cambiar el tema de color y alternar entre modo claro y oscuro.",
+    helpSettingsTitle: 'Modo oscuro',
+    helpSettingsBody: "El botón en la esquina superior derecha alterna entre claro y oscuro.",
     close: 'Cerrar',
     saving: 'Guardando…',
     saved: 'Guardado',
@@ -1655,7 +1603,6 @@ function loadSettings() {
     const p = JSON.parse(raw);
     const validModes = ['auto', 'light', 'dark'];
     return {
-      theme:    (THEMES[p.theme] ? p.theme : DEFAULT_SETTINGS.theme),
       mode:     (validModes.includes(p.mode) ? p.mode : DEFAULT_SETTINGS.mode)
     };
   } catch (e) {
@@ -1915,93 +1862,18 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !helpModal.hidden) helpModal.hidden = true;
 });
 
-// --- Settings modal ---
+// --- Dark mode toggle ---
 
-const settingsModal = document.getElementById('settingsModal');
-let themeOnOpen = null;
-let modeOnOpen = null;
-
-function populateThemeOptions(selected) {
-  const select = document.getElementById('setTheme');
-  select.innerHTML = Object.entries(THEMES).map(([key, theme]) => {
-    const sel = key === selected ? ' selected' : '';
-    const label = (theme.label && theme.label[lang]) || theme.label.en || key;
-    return `<option value="${key}"${sel}>${escapeHtml(label)}</option>`;
-  }).join('');
-}
-
-function currentModalSelections() {
-  return {
-    theme: document.getElementById('setTheme').value,
-    mode:  document.getElementById('setMode').value
-  };
-}
-
-function openSettings() {
-  populateThemeOptions(settings.theme);
-  document.getElementById('setMode').value     = settings.mode;
-  themeOnOpen = settings.theme;
-  modeOnOpen = settings.mode;
-  settingsModal.hidden = false;
-}
-
-function closeSettings() {
-  // Revert any unsaved theme / mode preview.
-  if (themeOnOpen !== null || modeOnOpen !== null) {
-    applyTheme(themeOnOpen || settings.theme, modeOnOpen || settings.mode);
-    themeOnOpen = null;
-    modeOnOpen = null;
-  }
-  settingsModal.hidden = true;
-}
-
-document.getElementById('settingsBtn').addEventListener('click', openSettings);
-
-settingsModal.addEventListener('click', e => {
-  if (e.target.closest('[data-modal-close]')) closeSettings();
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
-});
-
-document.getElementById('setTheme').addEventListener('change', () => {
-  const sel = currentModalSelections();
-  applyTheme(sel.theme, sel.mode);
-});
-
-document.getElementById('setMode').addEventListener('change', () => {
-  const sel = currentModalSelections();
-  applyTheme(sel.theme, sel.mode);
-});
-
-document.getElementById('settingsResetBtn').addEventListener('click', () => {
-  document.getElementById('setTheme').value    = DEFAULT_SETTINGS.theme;
-  document.getElementById('setMode').value     = DEFAULT_SETTINGS.mode;
-  applyTheme(DEFAULT_SETTINGS.theme, DEFAULT_SETTINGS.mode);
-});
-
-document.getElementById('settingsSaveBtn').addEventListener('click', () => {
-  const sel = currentModalSelections();
-  const validModes = ['auto', 'light', 'dark'];
-  const next = {
-    theme:    THEMES[sel.theme] ? sel.theme : DEFAULT_SETTINGS.theme,
-    mode:     validModes.includes(sel.mode) ? sel.mode : DEFAULT_SETTINGS.mode
-  };
-  settings = next;
+document.getElementById('modeToggleBtn').addEventListener('click', () => {
+  settings.mode = effectiveDark() ? 'light' : 'dark';
   saveSettings(settings);
-  applyTheme(settings.theme, settings.mode);
-  themeOnOpen = null;
-  modeOnOpen = null;
-  settingsModal.hidden = true;
-  syncFromInputs();
-  render();
+  applyTheme();
 });
 
 // --- Init ---
 
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (settings.mode === 'auto') applyTheme(settings.theme, settings.mode);
+  if (!settings.mode || settings.mode === 'auto') applyTheme();
 });
 
 // ---- Cloud sync (optional; gated by CLOUD.enabled) ------------------------
@@ -2414,7 +2286,7 @@ function setupCloudUI() {
 }
 
 (function init() {
-  applyTheme(settings.theme, settings.mode);
+  applyTheme();
   document.body.classList.add('lang-' + lang);
   applyStaticTranslations();
   const fromHash = decodeStateFromHash(location.hash);
