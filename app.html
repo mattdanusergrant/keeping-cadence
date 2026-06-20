@@ -245,7 +245,7 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .day-times .dash { color: var(--warning); font-weight: 700; }
+  .day-times .dash { color: var(--muted); font-weight: 700; }
   .day-times.invalid { color: var(--warning); }
   .day-times.day-off-mark {
     color: var(--muted); font-style: italic; font-weight: 400;
@@ -369,9 +369,40 @@
     font-size: 0.85rem; color: var(--muted);
     text-transform: none; letter-spacing: 0; margin-bottom: 0;
   }
+  /* Tap-to-set time grid */
+  .grid-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.5rem; margin-bottom: 0.45rem;
+  }
+  .grid-readout {
+    font-weight: 600; color: var(--ink);
+    font-variant-numeric: tabular-nums; font-size: 0.95rem;
+  }
+  .grid-readout.hint { font-weight: 400; color: var(--muted); }
+  .dayoff-btn {
+    font: inherit; font-size: 0.8rem; padding: 0.25rem 0.6rem; flex: none;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 6px; cursor: pointer;
+  }
+  .dayoff-btn:hover { border-color: var(--accent); color: var(--ink); }
+  .time-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  }
+  .tblock {
+    font: inherit; font-size: 0.72rem; font-variant-numeric: tabular-nums;
+    padding: 0.6rem 0.15rem; text-align: center;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 6px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .08s ease, color .08s ease, border-color .08s ease;
+  }
+  .tblock:hover { border-color: var(--accent); color: var(--ink); }
+  .tblock.sel {
+    background: var(--accent); border-color: var(--accent);
+    color: var(--on-accent); font-weight: 600;
+  }
 
   body.view-mode .editable { display: none; }
-  body.edit-mode .readonly { display: none; }
   body.view-mode .day.editing .editable { display: block; }
   body.view-mode .day.editing .editable.day-line { display: flex; }
   body.view-mode .day.editing .readonly { display: none; }
@@ -621,13 +652,12 @@
         <button id="accountBtn" type="button" hidden data-i18n="signIn">Sign in</button>
         <button id="shareBtn" data-i18n="share">Share</button>
         <button id="modeToggleBtn" type="button" data-i18n-aria-label="darkModeToggle" aria-label="Toggle dark mode">☾</button>
-        <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
       </div>
     </div>
     <div class="week-label" id="weekLabel"></div>
   </header>
 
-  <div class="toolbar editable">
+  <div class="toolbar">
     <button id="duplicateBtn" data-i18n="duplicate">Duplicate &rarr; next week</button>
     <button id="newWeekBtn" data-i18n="newWeek">New (blank) week</button>
     <div class="week-picker">
@@ -838,7 +868,6 @@ function updateModeToggle(isDark) {
 const T = {
   en: {
     title: 'Keeping Cadence',
-    edit: 'Edit',
     accountTitle: 'Account',
     email: 'Email',
     password: 'Password',
@@ -858,6 +887,7 @@ const T = {
     weekOf: 'Week of',
     hours: 'Hours',
     dayOff: 'Day Off',
+    tapToSetHours: 'Tap to set hours',
     actualHoursLabel: 'Hours worked',
     weekScheduledLabel: 'Scheduled',
     masterView: 'All',
@@ -875,7 +905,7 @@ const T = {
     helpTodayTitle: "Today's day",
     helpTodayBody: "The current day stands out with a brighter red line on the left edge and a soft background tint.",
     helpEditTitle: 'Editing a day',
-    helpEditBody: "Tap 'Edit' at the top right, change the times in the dropdowns, log how many hours were actually worked, then tap 'Done' to save.",
+    helpEditBody: "Tap any day to open its time grid, then tap blocks to set the working hours. Log how many hours were actually worked, then tap 'Done'. Changes save automatically.",
     helpSettingsTitle: 'Dark mode',
     helpSettingsBody: "The button in the top-right corner toggles between light and dark.",
     close: 'Close',
@@ -922,7 +952,6 @@ const T = {
   },
   es: {
     title: 'Keeping Cadence',
-    edit: 'Editar',
     accountTitle: 'Cuenta',
     email: 'Correo',
     password: 'Contraseña',
@@ -942,6 +971,7 @@ const T = {
     weekOf: 'Semana del',
     hours: 'Horas',
     dayOff: 'Día libre',
+    tapToSetHours: 'Toca para fijar las horas',
     actualHoursLabel: 'Horas trabajadas',
     weekScheduledLabel: 'Programado',
     masterView: 'Todos',
@@ -959,7 +989,7 @@ const T = {
     helpTodayTitle: 'El día de hoy',
     helpTodayBody: "El día actual se destaca con una línea roja más brillante a la izquierda y un fondo ligeramente tintado.",
     helpEditTitle: 'Editar un día',
-    helpEditBody: "Toca 'Editar' arriba a la derecha, cambia las horas en los menús, registra cuántas horas se trabajaron realmente y toca 'Listo' para guardar.",
+    helpEditBody: "Toca un día para abrir su cuadrícula de horas y toca los bloques para fijar el horario. Registra cuántas horas se trabajaron y toca 'Listo'. Se guarda automáticamente.",
     helpSettingsTitle: 'Modo oscuro',
     helpSettingsBody: "El botón en la esquina superior derecha alterna entre claro y oscuro.",
     close: 'Cerrar',
@@ -1244,6 +1274,78 @@ function fmtDayDateShort(iso, offset) {
   return `${m}/${day}`;
 }
 
+// --- Tap-to-set time grid ---------------------------------------------------
+// A day's plan is a single contiguous span. The grid shows 30-minute blocks
+// across the DAY_START–DAY_END window; tapping extends, trims, or clears it.
+const GRID_STEP = 30;
+function gridBlockCount() {
+  return (hhmmToMinutes(DAY_END) - hhmmToMinutes(DAY_START)) / GRID_STEP;
+}
+
+// Current selection as inclusive block indices { a, b }, or null for a day off.
+function selectedBlockRange(day) {
+  const base = hhmmToMinutes(DAY_START);
+  const s = hhmmToMinutes(day.start);
+  const e = hhmmToMinutes(day.end);
+  if (s === null || e === null || e <= s) return null;
+  const a = Math.round((s - base) / GRID_STEP);
+  const b = Math.round((e - base) / GRID_STEP) - 1;
+  return b < a ? null : { a: Math.max(0, a), b: Math.min(gridBlockCount() - 1, b) };
+}
+
+// Compact, unambiguous label: en "6a" / "6:30a" / "12p" / "9:30p"; es 24h.
+function blockLabel(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (lang === 'es') return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  const ap = h < 12 ? 'a' : 'p';
+  let hh = h % 12; if (hh === 0) hh = 12;
+  return m === 0 ? `${hh}${ap}` : `${hh}:${String(m).padStart(2, '0')}${ap}`;
+}
+
+// Tap block `idx`: start fresh, extend toward it, trim an end, or clear.
+function applyBlockTap(day, idx) {
+  const base = hhmmToMinutes(DAY_START);
+  const r = selectedBlockRange(day);
+  let a, b;
+  if (!r) { a = idx; b = idx; }
+  else if (idx < r.a) { a = idx; b = r.b; }
+  else if (idx > r.b) { a = r.a; b = idx; }
+  else if (r.a === r.b) { day.start = ''; day.end = ''; return; }
+  else if (idx === r.a) { a = r.a + 1; b = r.b; }
+  else if (idx === r.b) { a = r.a; b = r.b - 1; }
+  else { a = r.a; b = idx; }
+  day.start = minutesToHhmm(base + a * GRID_STEP);
+  day.end = minutesToHhmm(base + (b + 1) * GRID_STEP);
+}
+
+function gridReadoutHtml(day) {
+  const r = selectedBlockRange(day);
+  if (!r) return `<span class="grid-readout hint">${escapeHtml(t('tapToSetHours'))}</span>`;
+  const base = hhmmToMinutes(DAY_START);
+  const from = blockLabel(base + r.a * GRID_STEP);
+  const to = blockLabel(base + (r.b + 1) * GRID_STEP);
+  const hrs = estimatedHoursDisplay(day);
+  return `<span class="grid-readout">${escapeHtml(from)} – ${escapeHtml(to)}${hrs ? ` · ${escapeHtml(hrs)}` : ''}</span>`;
+}
+
+function dayGridFieldHtml(day, i) {
+  const base = hhmmToMinutes(DAY_START);
+  const n = gridBlockCount();
+  const r = selectedBlockRange(day);
+  let cells = '';
+  for (let idx = 0; idx < n; idx++) {
+    const inSel = r && idx >= r.a && idx <= r.b;
+    cells += `<button type="button" class="tblock${inSel ? ' sel' : ''}" data-block="${idx}">${escapeHtml(blockLabel(base + idx * GRID_STEP))}</button>`;
+  }
+  return `<div class="field">
+    <div class="grid-head">
+      ${gridReadoutHtml(day)}
+      <button type="button" class="dayoff-btn" data-dayoff="${i}">${escapeHtml(t('dayOff'))}</button>
+    </div>
+    <div class="time-grid">${cells}</div>
+  </div>`;
+}
+
 function dayTimesRowHtml(day) {
   const est = estimatedHoursDisplay(day);
   const estSpan = est ? `<span class="hrs-est">${escapeHtml(est)}</span>` : '';
@@ -1322,9 +1424,6 @@ function applyStaticTranslations() {
   document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
     el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
   });
-  // toggleMode label depends on current mode
-  const isEdit = document.body.classList.contains('edit-mode');
-  document.getElementById('toggleMode').textContent = isEdit ? t('done') : t('edit');
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -1526,15 +1625,7 @@ function render() {
         ${dayActualRowHtml(day)}
       </div>
       <div class="editable">
-        ${canEditPlan ? `
-        <div class="field">
-          <label>${escapeHtml(t('hours'))}</label>
-          <div class="time-row">
-            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start, DAY_START, DAY_END)}</select>
-            <span class="dash">–</span>
-            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end, DAY_START, DAY_END)}</select>
-          </div>
-        </div>` : planRecapHtml(day)}
+        ${canEditPlan ? (editingDayIndex === i ? dayGridFieldHtml(day, i) : '') : planRecapHtml(day)}
         ${canEditActuals ? `
         <div class="field">
           <label>${escapeHtml(t('actualHoursLabel'))}</label>
@@ -1545,8 +1636,7 @@ function render() {
             placeholder="${escapeHtml(estimatedHoursDisplay(day) || '')}">
         </div>` : (hasAssignee ? loggedRecapHtml(day) : '')}
         <div class="day-actions">
-          ${canEditPlan ? `<button type="button" class="clear-day-btn" data-clear-day="${i}">${escapeHtml(t('clearDay'))}</button>
-          ${i < 6 ? `<button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>` : ''}` : ''}
+          ${canEditPlan && i < 6 ? `<button type="button" class="copy-next-btn" data-copy-from="${i}">${escapeHtml(t('copyToNext'))}</button>` : ''}
           <button type="button" class="day-action-done editing-only primary" data-done-day="${i}">${escapeHtml(t('done'))}</button>
         </div>
       </div>
@@ -1710,25 +1800,6 @@ document.getElementById('langBtn').addEventListener('click', () => {
   setLang(lang === 'en' ? 'es' : 'en');
 });
 
-document.getElementById('toggleMode').addEventListener('click', () => {
-  if (isMasterView()) return;
-  const isEdit = document.body.classList.contains('edit-mode');
-  if (isEdit) {
-    syncFromInputs();
-    document.body.classList.replace('edit-mode', 'view-mode');
-    document.getElementById('toggleMode').textContent = t('edit');
-    render();
-  } else {
-    if (editingDayIndex !== null) {
-      syncFromInputs();
-      editingDayIndex = null;
-    }
-    document.body.classList.replace('view-mode', 'edit-mode');
-    document.getElementById('toggleMode').textContent = t('done');
-    render();
-  }
-});
-
 document.getElementById('weekStart').addEventListener('change', e => {
   syncFromInputs();
   state.weekStart = e.target.value;
@@ -1761,19 +1832,26 @@ document.getElementById('days').addEventListener('click', e => {
     showToast(t('copiedToNext'));
     return;
   }
-  const clearBtn = e.target.closest('.clear-day-btn');
-  if (clearBtn) {
-    const idx = +clearBtn.dataset.clearDay;
-    if (idx < 0 || idx > 6) return;
-    syncFromInputs();
+  const blk = e.target.closest('.tblock');
+  if (blk) {
+    const dayEl = blk.closest('.day');
+    const idx = Array.from(dayEl.parentElement.children).indexOf(dayEl);
     const days = activeDays();
-    const d = days[idx];
-    const hasContent = d.start || d.end;
-    if (hasContent && !confirm(t('confirmClearDay'))) return;
-    days[idx] = emptyDay();
+    if (days[idx]) {
+      applyBlockTap(days[idx], +blk.dataset.block);
+      render();
+      scheduleSave();
+    }
+    return;
+  }
+  const offBtn = e.target.closest('.dayoff-btn');
+  if (offBtn) {
+    const dayEl = offBtn.closest('.day');
+    const idx = Array.from(dayEl.parentElement.children).indexOf(dayEl);
+    const days = activeDays();
+    if (days[idx]) { days[idx].start = ''; days[idx].end = ''; }
     render();
     scheduleSave();
-    showToast(t('dayCleared'));
     return;
   }
   const doneBtn = e.target.closest('.day-action-done');
@@ -1789,7 +1867,6 @@ document.getElementById('days').addEventListener('click', e => {
 
   // Card-level click: open this day for editing (view-mode only).
   if (isMasterView()) return;
-  if (document.body.classList.contains('edit-mode')) return;
   if (e.target.closest('select, input, textarea, button, label')) return;
   const dayEl = e.target.closest('.day');
   if (!dayEl) return;
@@ -2062,7 +2139,7 @@ async function restoreSession() {
 let lastPullAt = 0, refreshing = false;
 async function cloudRefresh() {
   if (!CLOUD.enabled || !authUser || openedFromShare || refreshing) return;
-  if (document.body.classList.contains('edit-mode') || editingDayIndex !== null) return;
+  if (editingDayIndex !== null) return;
   if (Date.now() - lastPullAt < 4000) return;
   lastPullAt = Date.now();
   refreshing = true;
