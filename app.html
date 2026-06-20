@@ -386,13 +386,19 @@
   }
   .dayoff-btn:hover { border-color: var(--accent); color: var(--ink); }
   .time-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+    display: flex; gap: 5px;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0 9px; scrollbar-width: thin;
   }
+  .time-grid::-webkit-scrollbar { height: 6px; }
+  .time-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .tblock {
-    font: inherit; font-size: 0.72rem; font-variant-numeric: tabular-nums;
-    padding: 0.6rem 0.15rem; text-align: center;
+    flex: 0 0 auto; width: 64px;
+    font: inherit; font-size: 0.88rem; font-variant-numeric: tabular-nums;
+    padding: 1rem 0.25rem; text-align: center;
     background: var(--card); border: 1px solid var(--border);
-    color: var(--muted); border-radius: 6px; cursor: pointer;
+    color: var(--muted); border-radius: 10px; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: background .08s ease, color .08s ease, border-color .08s ease;
   }
@@ -1346,6 +1352,17 @@ function dayGridFieldHtml(day, i) {
   </div>`;
 }
 
+// After a day opens, bring the selected span (or the morning) into view in the
+// horizontally-scrolling grid.
+function scrollGridToSelection() {
+  if (editingDayIndex === null) return;
+  const grid = document.querySelector('.day.editing .time-grid');
+  if (!grid) return;
+  const defaultIdx = Math.max(0, Math.round((hhmmToMinutes('08:00') - hhmmToMinutes(DAY_START)) / GRID_STEP));
+  const target = grid.querySelector('.tblock.sel') || grid.children[defaultIdx];
+  if (target) grid.scrollLeft = Math.max(0, target.offsetLeft - grid.clientWidth * 0.2);
+}
+
 function dayTimesRowHtml(day) {
   const est = estimatedHoursDisplay(day);
   const estSpan = est ? `<span class="hrs-est">${escapeHtml(est)}</span>` : '';
@@ -1838,8 +1855,11 @@ document.getElementById('days').addEventListener('click', e => {
     const idx = Array.from(dayEl.parentElement.children).indexOf(dayEl);
     const days = activeDays();
     if (days[idx]) {
+      const sl = blk.closest('.time-grid').scrollLeft;
       applyBlockTap(days[idx], +blk.dataset.block);
       render();
+      const g = document.querySelector('.day.editing .time-grid');
+      if (g) g.scrollLeft = sl;
       scheduleSave();
     }
     return;
@@ -1849,8 +1869,12 @@ document.getElementById('days').addEventListener('click', e => {
     const dayEl = offBtn.closest('.day');
     const idx = Array.from(dayEl.parentElement.children).indexOf(dayEl);
     const days = activeDays();
+    const g0 = dayEl.querySelector('.time-grid');
+    const sl = g0 ? g0.scrollLeft : 0;
     if (days[idx]) { days[idx].start = ''; days[idx].end = ''; }
     render();
+    const g = document.querySelector('.day.editing .time-grid');
+    if (g) g.scrollLeft = sl;
     scheduleSave();
     return;
   }
@@ -1878,6 +1902,7 @@ document.getElementById('days').addEventListener('click', e => {
   }
   editingDayIndex = idx;
   render();
+  scrollGridToSelection();
 });
 
 document.getElementById('newWeekBtn').addEventListener('click', () => {
