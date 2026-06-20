@@ -547,6 +547,27 @@
     background: var(--accent); color: var(--on-accent); border-color: var(--accent);
   }
   .team-empty { color: var(--muted); font-size: 0.88rem; }
+  .team-row .team-pick {
+    text-align: left; background: none; border: none; padding: 0.3rem 0;
+    color: var(--ink); font-weight: 500; cursor: pointer;
+  }
+  .team-row .team-pick:hover { color: var(--accent); border: none; }
+  .team-row.active .team-pick { color: var(--accent); font-weight: 700; }
+  .team-badge { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .team-create { display: flex; gap: 0.4rem; margin: 0.3rem 0 0.2rem; }
+  .team-create input {
+    flex: 1; min-width: 0; font: inherit; padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--ink);
+  }
+  .team-create button {
+    font: inherit; padding: 0.35rem 0.7rem; border-radius: 7px; cursor: pointer; flex: none;
+    background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+  }
+  .active-team-name { color: var(--muted); font-weight: 400; }
+  .team-select {
+    font: inherit; max-width: 11rem; padding: 0.35rem 0.45rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+  }
   .team-onteam { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.2rem; }
   .role-hint { color: var(--muted); font-size: 0.85rem; margin: 0.15rem 0 0.55rem; }
   .plan-recap { margin-bottom: 0.5rem; }
@@ -667,6 +688,7 @@
   </header>
 
   <div class="toolbar">
+    <select id="teamSelect" class="team-select" hidden data-i18n-aria-label="team" aria-label="Team"></select>
     <button id="duplicateBtn" data-i18n="duplicate">Duplicate &rarr; next week</button>
     <button id="newWeekBtn" data-i18n="newWeek">New (blank) week</button>
     <div class="week-picker">
@@ -697,14 +719,6 @@
         <label for="acctPassword" data-i18n="password">Password</label>
         <input type="password" id="acctPassword" autocomplete="current-password">
       </div>
-      <div class="setting-row">
-        <label for="acctRole" data-i18n="accountType">Account type</label>
-        <select id="acctRole">
-          <option value="user" data-i18n="roleUser">Just me</option>
-          <option value="manager" data-i18n="roleManager">I manage a team</option>
-        </select>
-      </div>
-      <p class="account-hint" data-i18n="accountTypeHint">Applies to new accounts. Managers can invite people and assign them schedules.</p>
       <p class="account-msg" id="accountMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
       <div class="modal-actions">
         <button type="button" data-modal-close data-i18n="cancel">Cancel</button>
@@ -725,30 +739,36 @@
 <div class="modal" id="teamModal" hidden>
   <div class="modal-backdrop" data-modal-close></div>
   <div class="modal-card" role="dialog" aria-labelledby="teamHeading">
-    <h2 id="teamHeading" data-i18n="teamTitle">Team</h2>
-    <div id="teamManager" hidden>
-      <div class="setting-row">
-        <label for="inviteEmailInput" data-i18n="inviteEmail">Invite by email</label>
+    <h2 id="teamHeading"><span data-i18n="teamTitle">Team</span><span id="activeTeamName" class="active-team-name"></span></h2>
+
+    <h3 class="team-subhead" data-i18n="yourTeams">Your teams</h3>
+    <div id="teamPickList" class="team-list"></div>
+    <div class="team-create">
+      <input type="text" id="newTeamInput" data-i18n-placeholder="newTeamName" placeholder="New team name" autocomplete="off">
+      <button type="button" id="createTeamBtn" data-i18n="createTeam">Create team</button>
+    </div>
+
+    <div id="teamOwnerPanel" hidden>
+      <h3 class="team-subhead" data-i18n="inviteEmail">Invite by email</h3>
+      <div class="team-create">
         <input type="email" id="inviteEmailInput" autocomplete="off">
-      </div>
-      <div class="modal-actions" style="margin-top:.4rem">
         <button type="button" id="inviteBtn" class="primary" data-i18n="invite">Invite</button>
       </div>
-      <h3 class="team-subhead" data-i18n="teamMembers">Team members</h3>
+      <h3 class="team-subhead" data-i18n="teamMembers">Members</h3>
       <div id="teamMembersList" class="team-list"></div>
       <h3 class="team-subhead" data-i18n="assignHead">Assign schedules</h3>
       <div id="teamAssignList" class="team-list"></div>
     </div>
-    <div id="teamMember" hidden>
-      <div id="teamLeave" hidden>
-        <p class="team-onteam" data-i18n="onATeam">You're on a team.</p>
-        <div class="modal-actions" style="justify-content:flex-start;margin-top:.2rem">
-          <button type="button" id="leaveTeamBtn" data-i18n="leaveTeam">Leave team</button>
-        </div>
+
+    <div id="teamMemberPanel" hidden>
+      <div class="modal-actions" style="justify-content:flex-start;margin-top:.2rem">
+        <button type="button" id="leaveTeamBtn" data-i18n="leaveTeam">Leave team</button>
       </div>
-      <h3 class="team-subhead" id="invitesHead" data-i18n="pendingInvites">Invitations</h3>
-      <div id="teamInvitesList" class="team-list"></div>
     </div>
+
+    <h3 class="team-subhead" id="invitesHead" data-i18n="pendingInvites" hidden>Invitations</h3>
+    <div id="teamInvitesList" class="team-list"></div>
+
     <p class="account-msg" id="teamMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
     <div class="modal-actions">
       <button type="button" class="primary" data-modal-close data-i18n="close">Close</button>
@@ -813,9 +833,12 @@ const CLOUD = {
   dataApi:  'https://ep-tiny-sun-a6wesvb9.apirest.us-west-2.aws.neon.tech/neondb/rest/v1',
 };
 const SESSION_KEY = 'keeping-cadence-session';
-let authUser = null;          // { email, userId, role, managerId } once signed in
-let teamMembers = [];         // manager's roster: [{ userId, email }]
-let pendingInvites = [];      // invites addressed to me: [{ id, manager_id }]
+let authUser = null;          // { email, userId } once signed in
+let teams = [];               // teams I can see: [{ id, ownerId, name }] (own + joined)
+let activeTeamId = (function () { try { return localStorage.getItem('kc-active-team') || null; } catch (e) { return null; } })();
+let teamMembers = [];         // roster of the active team if I own it: [{ userId, email }]
+let pendingInvites = [];      // invites addressed to me: [{ id, teamId }]
+function saveActiveTeam() { try { localStorage.setItem('kc-active-team', activeTeamId || ''); } catch (e) {} }
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   mode: 'auto'
@@ -933,14 +956,16 @@ const T = {
     sharePrompt: 'Copy this share link:',
     team: 'Team',
     teamTitle: 'Team',
-    accountType: 'Account type',
-    roleUser: 'Just me',
-    roleManager: 'I manage a team',
-    accountTypeHint: 'Applies to new accounts. Managers can invite people and assign them schedules.',
+    yourTeams: 'Your teams',
+    createTeam: 'Create team',
+    newTeamName: 'New team name',
+    teamCreated: 'Team created',
+    ownerBadge: 'owner',
+    memberBadge: 'member',
     inviteEmail: 'Invite by email',
     invite: 'Invite',
     invited: 'Invitation sent',
-    teamMembers: 'Team members',
+    teamMembers: 'Members',
     noMembers: 'No one has joined yet.',
     assignHead: 'Assign schedules',
     unassigned: 'Unassigned',
@@ -951,11 +976,10 @@ const T = {
     decline: 'Decline',
     inviteAccepted: 'Invitation accepted',
     inviteDeclined: 'Invitation declined',
-    actualsOnlyNote: 'Your manager sets the plan; you log the hours you actually work.',
+    actualsOnlyNote: 'The team owner sets the plan; you log the hours you actually work.',
     removeMember: 'Remove',
-    confirmRemoveMember: 'Remove {email} from your team? Their schedule assignments will be cleared.',
+    confirmRemoveMember: 'Remove {email} from this team? Their schedule assignments will be cleared.',
     memberRemoved: 'Member removed',
-    onATeam: "You're on a team.",
     leaveTeam: 'Leave team',
     confirmLeaveTeam: "Leave this team? You'll stop seeing schedules assigned to you.",
     leftTeam: 'You left the team'
@@ -1017,14 +1041,16 @@ const T = {
     sharePrompt: 'Copia este enlace:',
     team: 'Equipo',
     teamTitle: 'Equipo',
-    accountType: 'Tipo de cuenta',
-    roleUser: 'Solo yo',
-    roleManager: 'Gestiono un equipo',
-    accountTypeHint: 'Aplica a cuentas nuevas. Los gestores pueden invitar personas y asignarles horarios.',
+    yourTeams: 'Tus equipos',
+    createTeam: 'Crear equipo',
+    newTeamName: 'Nombre del equipo',
+    teamCreated: 'Equipo creado',
+    ownerBadge: 'dueño',
+    memberBadge: 'miembro',
     inviteEmail: 'Invitar por correo',
     invite: 'Invitar',
     invited: 'Invitación enviada',
-    teamMembers: 'Miembros del equipo',
+    teamMembers: 'Miembros',
     noMembers: 'Nadie se ha unido todavía.',
     assignHead: 'Asignar horarios',
     unassigned: 'Sin asignar',
@@ -1035,11 +1061,10 @@ const T = {
     decline: 'Rechazar',
     inviteAccepted: 'Invitación aceptada',
     inviteDeclined: 'Invitación rechazada',
-    actualsOnlyNote: 'Tu gestor define el plan; tú registras las horas que realmente trabajas.',
+    actualsOnlyNote: 'El dueño del equipo define el plan; tú registras las horas que realmente trabajas.',
     removeMember: 'Quitar',
-    confirmRemoveMember: '¿Quitar a {email} de tu equipo? Se borrarán sus asignaciones de horario.',
+    confirmRemoveMember: '¿Quitar a {email} de este equipo? Se borrarán sus asignaciones de horario.',
     memberRemoved: 'Miembro eliminado',
-    onATeam: 'Estás en un equipo.',
     leaveTeam: 'Salir del equipo',
     confirmLeaveTeam: '¿Salir de este equipo? Dejarás de ver los horarios asignados a ti.',
     leftTeam: 'Saliste del equipo'
@@ -1203,13 +1228,14 @@ function activeDays() {
   return s ? s.days : [];
 }
 
-// 'actuals' = a schedule someone else owns that is assigned to me (I log hours
-// only); 'plan' = I own it (solo, or as a manager who authors the plan).
+function activeTeam() { return teams.find(tm => tm.id === activeTeamId) || null; }
+function iOwnTeam(tm) { return !!(tm && authUser && tm.ownerId === authUser.userId); }
+function iOwnActiveTeam() { return iOwnTeam(activeTeam()); }
+
+// 'actuals' = the active team is one I joined (someone else owns it); I only log
+// hours on schedules assigned to me. 'plan' = a team I own, or the local app.
 function scheduleAccess(s) {
-  if (CLOUD.enabled && authUser && authUser.userId && s && s.ownerId &&
-      s.ownerId !== authUser.userId && s.assignedUserId === authUser.userId) {
-    return 'actuals';
-  }
+  if (CLOUD.enabled && authUser && activeTeam() && !iOwnActiveTeam()) return 'actuals';
   return 'plan';
 }
 function activeAccess() { return scheduleAccess(activeSchedule()); }
@@ -1539,7 +1565,9 @@ function renderScheduleTabs() {
     html += `<button type="button" class="schedule-tab master${active}" data-schedule-id="master">`
       + `<span>${escapeHtml(t('masterView'))}</span></button>`;
   }
-  html += `<button type="button" class="schedule-tab add" id="addScheduleBtn">${escapeHtml(t('addScheduleBtn'))}</button>`;
+  if (!CLOUD.enabled || !authUser || iOwnActiveTeam()) {
+    html += `<button type="button" class="schedule-tab add" id="addScheduleBtn">${escapeHtml(t('addScheduleBtn'))}</button>`;
+  }
   el.innerHTML = html;
 }
 
@@ -1781,6 +1809,7 @@ document.getElementById('scheduleTabs').addEventListener('click', e => {
   const tab = e.target.closest('[data-schedule-id]');
   const addBtn = e.target.closest('#addScheduleBtn');
   if (addBtn) {
+    if (CLOUD.enabled && authUser && !iOwnActiveTeam()) return;  // only a team owner adds schedules
     syncFromInputs();
     scheduleSave();
     const idx = state.schedules.length;
@@ -2025,9 +2054,7 @@ function decodeJwtSub(jwt) {
 function setAuthUserFromProfile(email, prof) {
   authUser = {
     email: (prof && prof.email) || email,
-    userId: (prof && prof.user_id) || decodeJwtSub(dataJwt),
-    role: (prof && prof.role) || 'user',
-    managerId: prof && prof.manager_id
+    userId: (prof && prof.user_id) || decodeJwtSub(dataJwt)
   };
 }
 function scheduleHasContent(s) {
@@ -2056,13 +2083,13 @@ async function flushSaves() {
       }
       let id = s.id;
       if (!isServerId(id)) {
-        // local-only schedule: create it server-side, then adopt the real id
-        const created = await rpc('create_schedule', { p_name: s.name, p_color: s.colorVar });
+        // local-only schedule: create it in the active team, then adopt the real id
+        if (!iOwnActiveTeam() || !activeTeamId) continue;
+        const created = await rpc('create_schedule', { p_team_id: activeTeamId, p_name: s.name, p_color: s.colorVar });
         const row = unrow(created);
         if (row && row.id) {
           if (state.activeId === s.id) state.activeId = row.id;
           s.id = row.id; id = row.id;
-          s.ownerId = row.owner_id || (authUser && authUser.userId);
           try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) {}
         }
       } else {
@@ -2074,24 +2101,66 @@ async function flushSaves() {
   }
 }
 
+// Load the teams I can see (own + joined); guarantee I own at least one (a
+// personal workspace) and that activeTeamId points at a real team.
+async function loadTeams() {
+  if (!CLOUD.enabled || !authUser) { teams = []; return; }
+  const tms = await dapi('/teams?select=id,owner_id,name&order=created_at.asc');
+  teams = (Array.isArray(tms) ? tms : []).map(tm => ({ id: tm.id, ownerId: tm.owner_id, name: tm.name }));
+  if (!teams.some(tm => tm.ownerId === authUser.userId)) {
+    try {
+      const tm = unrow(await rpc('create_team', { p_name: (authUser.email || '').split('@')[0] || 'My team' }));
+      if (tm && tm.id) teams.push({ id: tm.id, ownerId: tm.owner_id, name: tm.name });
+    } catch (e) {}
+  }
+  if (!activeTeamId || !teams.some(tm => tm.id === activeTeamId)) {
+    const owned = teams.find(tm => tm.ownerId === authUser.userId);
+    activeTeamId = ((owned || teams[0]) || {}).id || null;
+    saveActiveTeam();
+  }
+}
+
 async function cloudPull() {
   if (!CLOUD.enabled || !authUser) return 0;
-  const scheds = await dapi('/schedules?select=id,name,color_var,owner_id,assigned_user_id&order=created_at.asc');
-  if (Array.isArray(scheds) && scheds.length) {
-    const inList = '(' + scheds.map(s => s.id).join(',') + ')';
+  await loadTeams();
+  if (!activeTeamId) { render(); return 0; }
+  const scheds = await dapi('/schedules?select=id,name,color_var,assigned_user_id&team_id=eq.' +
+    encodeURIComponent(activeTeamId) + '&order=created_at.asc');
+  const list = Array.isArray(scheds) ? scheds : [];
+  const byId = {};
+  if (list.length) {
+    const inList = '(' + list.map(s => s.id).join(',') + ')';
     const weeks = await dapi('/weeks?select=schedule_id,days&week_start=eq.' +
       encodeURIComponent(state.weekStart) + '&schedule_id=in.' + inList);
-    const byId = {}; (weeks || []).forEach(w => { byId[w.schedule_id] = w.days; });
-    const schedules = scheds.map(s => ({
-      id: s.id, name: s.name, colorVar: s.color_var || 'accent',
-      ownerId: s.owner_id, assignedUserId: s.assigned_user_id,
-      days: Array.isArray(byId[s.id]) && byId[s.id].length === 7
-        ? byId[s.id].map(normalizeDay) : Array.from({ length: 7 }, () => emptyDay())
-    }));
-    const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: state.activeId });
-    if (migrated) { state = migrated; render(); }
+    (weeks || []).forEach(w => { byId[w.schedule_id] = w.days; });
   }
-  return Array.isArray(scheds) ? scheds.length : 0;
+  let schedules = list.map(s => ({
+    id: s.id, name: s.name, colorVar: s.color_var || 'accent',
+    assignedUserId: s.assigned_user_id,
+    days: Array.isArray(byId[s.id]) && byId[s.id].length === 7
+      ? byId[s.id].map(normalizeDay) : Array.from({ length: 7 }, () => emptyDay())
+  }));
+  // An owned team with nothing yet gets a starter schedule so there's something
+  // to edit; a joined team with nothing assigned to me stays empty.
+  if (!schedules.length && iOwnActiveTeam()) {
+    schedules = [newSchedule(defaultScheduleName(0), colorVarForIndex(0))];
+  }
+  const migrated = migrateState({ weekStart: state.weekStart, schedules, activeId: state.activeId });
+  state = migrated || { weekStart: state.weekStart, schedules: [], activeId: null };
+  render();
+  return list.length;
+}
+
+// Switch the active team: flush pending saves, then load the new team's schedules.
+async function switchTeam(id) {
+  if (!id || id === activeTeamId) { reflectTeam(); return; }
+  if (cloudTimer) { clearTimeout(cloudTimer); cloudTimer = null; try { await flushSaves(); } catch (e) {} }
+  activeTeamId = id; saveActiveTeam();
+  state = { weekStart: state.weekStart, schedules: [], activeId: null };
+  editingDayIndex = null;
+  await cloudPull();
+  await syncTeam();
+  reflectAuth();
 }
 
 function reflectAuth() {
@@ -2111,8 +2180,6 @@ async function doAuth(action) {
   const email = document.getElementById('acctEmail').value.trim();
   const password = document.getElementById('acctPassword').value;
   if (!email || !password) throw new Error('Enter an email and password');
-  const roleSel = document.getElementById('acctRole');
-  const role = (roleSel && roleSel.value === 'manager') ? 'manager' : 'user';
   if (action === 'signup') {
     await authFetch('/sign-up/email', { method: 'POST', body: JSON.stringify({ email, password, name: email }) });
     if (!sessionToken()) await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
@@ -2120,17 +2187,14 @@ async function doAuth(action) {
     await authFetch('/sign-in/email', { method: 'POST', body: JSON.stringify({ email, password }) });
   }
   await getDataJwt(true);
-  // init_profile is idempotent; it only sets the role on first creation (at
-  // signup) and just refreshes the email on later calls.
   let prof = null;
-  try {
-    prof = unrow(await rpc('init_profile',
-      action === 'signup' ? { p_email: email, p_role: role } : { p_email: email }));
-  } catch (e) {}
+  try { prof = unrow(await rpc('init_profile', { p_email: email })); } catch (e) {}
   setAuthUserFromProfile(email, prof);
   const hadLocal = state.schedules && state.schedules.some(scheduleHasContent);
-  const n = await cloudPull();
-  if (n === 0 && hadLocal) cloudPush();   // move pre-account local work into the new account
+  await loadTeams();
+  // Move any pre-account local work into my personal team before pulling.
+  if (hadLocal && iOwnActiveTeam()) { try { await flushSaves(); } catch (e) {} }
+  await cloudPull();
   await syncTeam();
   reflectAuth();
 }
@@ -2171,35 +2235,41 @@ async function cloudRefresh() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cloudRefresh(); });
 window.addEventListener('focus', cloudRefresh);
 
-// ---- Teams (Phase 2) ------------------------------------------------------
-// Pull the manager's roster (other profiles whose manager_id is me) and any
-// pending invites addressed to me. Both are RLS-guarded reads.
+// ---- Teams ----------------------------------------------------------------
+// Pull the active team's roster (if I own it) and any pending invites to me.
 async function syncTeam() {
   if (!CLOUD.enabled || !authUser) { teamMembers = []; pendingInvites = []; reflectTeam(); return; }
   try {
-    if (authUser.role === 'manager') {
-      const profs = await dapi('/profiles?select=user_id,email,manager_id');
-      teamMembers = (profs || [])
-        .filter(p => p.manager_id === authUser.userId)
-        .map(p => ({ userId: p.user_id, email: p.email }));
+    if (iOwnActiveTeam()) {
+      const mem = await dapi('/team_members?select=user_id,email&team_id=eq.' + encodeURIComponent(activeTeamId));
+      teamMembers = (mem || []).map(m => ({ userId: m.user_id, email: m.email }));
     } else {
       teamMembers = [];
     }
-    // RLS also returns invites I sent (manager_id = me); keep only the ones
-    // addressed to me.
-    const inv = await dapi('/team_invites?select=id,manager_id,status&status=eq.pending');
-    pendingInvites = (inv || []).filter(i => i.manager_id !== authUser.userId);
+    // RLS also returns invites for teams I own; keep only the ones addressed to me.
+    const inv = await dapi('/team_invites?select=id,team_id,status&status=eq.pending');
+    const ownedIds = new Set(teams.filter(tm => tm.ownerId === authUser.userId).map(tm => tm.id));
+    pendingInvites = (inv || []).filter(i => !ownedIds.has(i.team_id)).map(i => ({ id: i.id, teamId: i.team_id }));
   } catch (e) { /* keep previous values on a transient error */ }
   reflectTeam();
 }
 
 function reflectTeam() {
   const btn = document.getElementById('teamBtn');
-  if (!btn) return;
-  const show = !!(CLOUD.enabled && authUser &&
-    (authUser.role === 'manager' || pendingInvites.length || authUser.managerId));
-  btn.hidden = !show;
-  btn.textContent = pendingInvites.length ? `${t('team')} (${pendingInvites.length})` : t('team');
+  if (btn) {
+    btn.hidden = !(CLOUD.enabled && authUser);
+    btn.textContent = pendingInvites.length ? `${t('team')} (${pendingInvites.length})` : t('team');
+  }
+  const sel = document.getElementById('teamSelect');
+  if (sel) {
+    const show = !!(CLOUD.enabled && authUser && teams.length);
+    sel.hidden = !show;
+    if (show) {
+      sel.innerHTML = teams.map(tm =>
+        `<option value="${escapeHtml(tm.id)}"${tm.id === activeTeamId ? ' selected' : ''}>`
+        + `${escapeHtml(tm.name)}${tm.ownerId !== authUser.userId ? ' · ' + escapeHtml(t('memberBadge')) : ''}</option>`).join('');
+    }
+  }
 }
 
 function teamMsg(m) {
@@ -2207,24 +2277,36 @@ function teamMsg(m) {
   if (el) { el.textContent = m || ''; el.hidden = !m; }
 }
 
-// Schedules I own (so a manager can assign them) that already exist server-side.
+// Schedules in the active (owned) team that already exist server-side.
 function ownedServerSchedules() {
-  return state.schedules.filter(s => isServerId(s.id) && scheduleAccess(s) === 'plan');
+  return iOwnActiveTeam() ? state.schedules.filter(s => isServerId(s.id)) : [];
 }
 
 function renderTeam() {
-  const isManager = !!(authUser && authUser.role === 'manager');
-  const onTeam = !!(authUser && authUser.managerId);
-  const mgrEl = document.getElementById('teamManager');
-  const memEl = document.getElementById('teamMember');
-  if (mgrEl) mgrEl.hidden = !isManager;
-  if (memEl) memEl.hidden = isManager || !(pendingInvites.length || onTeam);
-  const leaveEl = document.getElementById('teamLeave');
-  if (leaveEl) leaveEl.hidden = !onTeam;
+  const tm = activeTeam();
+  const owner = iOwnActiveTeam();
+  const nameEl = document.getElementById('activeTeamName');
+  if (nameEl) nameEl.textContent = tm ? ' · ' + tm.name : '';
+
+  const pick = document.getElementById('teamPickList');
+  if (pick) {
+    pick.innerHTML = teams.length ? teams.map(team => {
+      const isActive = team.id === activeTeamId;
+      const badge = team.ownerId === authUser.userId ? t('ownerBadge') : t('memberBadge');
+      return `<div class="team-row${isActive ? ' active' : ''}">`
+        + `<button type="button" class="grow team-pick" data-pick-team="${escapeHtml(team.id)}">${escapeHtml(team.name)}</button>`
+        + `<span class="team-badge">${escapeHtml(badge)}</span></div>`;
+    }).join('') : `<div class="team-empty">—</div>`;
+  }
+
+  const op = document.getElementById('teamOwnerPanel');
+  const mp = document.getElementById('teamMemberPanel');
+  if (op) op.hidden = !owner;
+  if (mp) mp.hidden = owner || !tm;
   const invHead = document.getElementById('invitesHead');
   if (invHead) invHead.hidden = !pendingInvites.length;
 
-  if (isManager) {
+  if (owner) {
     const ml = document.getElementById('teamMembersList');
     if (ml) {
       ml.innerHTML = teamMembers.length
@@ -2267,20 +2349,37 @@ function setupTeamUI() {
   btn.addEventListener('click', () => { teamMsg(''); renderTeam(); modal.hidden = false; });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
 
+  const tsel = document.getElementById('teamSelect');
+  if (tsel) tsel.addEventListener('change', () => { switchTeam(tsel.value); });
+
+  document.getElementById('createTeamBtn').addEventListener('click', async () => {
+    const input = document.getElementById('newTeamInput');
+    const name = (input.value || '').trim();
+    if (!name) return;
+    try {
+      teamMsg('');
+      const tm = unrow(await rpc('create_team', { p_name: name }));
+      input.value = '';
+      showToast(t('teamCreated'));
+      if (tm && tm.id) { teams.push({ id: tm.id, ownerId: tm.owner_id, name: tm.name }); await switchTeam(tm.id); }
+      renderTeam();
+    } catch (e) { teamMsg(e.message); }
+  });
+
   document.getElementById('inviteBtn').addEventListener('click', async () => {
     const input = document.getElementById('inviteEmailInput');
     const email = (input.value || '').trim();
-    if (!email) return;
+    if (!email || !activeTeamId) return;
     try {
       teamMsg('');
-      await rpc('invite_to_team', { p_email: email });
+      await rpc('invite_to_team', { p_team_id: activeTeamId, p_email: email });
       input.value = '';
       showToast(t('invited'));
       await syncTeam(); renderTeam();
     } catch (e) { teamMsg(e.message); }
   });
 
-  // Reassign a schedule when the manager changes its member dropdown.
+  // Reassign a schedule when the owner changes its member dropdown.
   modal.addEventListener('change', async e => {
     const sel = e.target.closest('[data-assign-schedule]');
     if (!sel) return;
@@ -2299,21 +2398,23 @@ function setupTeamUI() {
   });
 
   document.getElementById('leaveTeamBtn').addEventListener('click', async () => {
-    if (!confirm(t('confirmLeaveTeam'))) return;
+    if (!activeTeamId || !confirm(t('confirmLeaveTeam'))) return;
     try {
       teamMsg('');
-      await rpc('leave_team', {});
-      if (authUser) authUser.managerId = null;
+      await rpc('leave_team', { p_team_id: activeTeamId });
       showToast(t('leftTeam'));
-      await cloudPull();   // schedules assigned to me drop off
+      teams = teams.filter(tm => tm.id !== activeTeamId);
+      activeTeamId = null; saveActiveTeam();
+      await cloudPull();   // loads another team (and re-derives activeTeamId)
       await syncTeam();
-      renderTeam(); reflectAuth(); render();
-      if (!pendingInvites.length) modal.hidden = true;
+      renderTeam(); reflectAuth();
     } catch (err) { teamMsg(err.message); }
   });
 
   modal.addEventListener('click', async e => {
     if (e.target.closest('[data-modal-close]')) { modal.hidden = true; return; }
+    const pick = e.target.closest('[data-pick-team]');
+    if (pick) { await switchTeam(pick.dataset.pickTeam); renderTeam(); return; }
     const rm = e.target.closest('[data-remove-member]');
     if (rm) {
       const uid = rm.dataset.removeMember;
@@ -2321,11 +2422,11 @@ function setupTeamUI() {
       if (!confirm(t('confirmRemoveMember').replace('{email}', (mem && mem.email) || ''))) return;
       try {
         teamMsg('');
-        await rpc('remove_member', { p_user_id: uid });
+        await rpc('remove_member', { p_team_id: activeTeamId, p_user_id: uid });
         showToast(t('memberRemoved'));
         await cloudPull();   // a schedule assignment may have been cleared
         await syncTeam();
-        renderTeam(); render();
+        renderTeam();
       } catch (err) { teamMsg(err.message); }
       return;
     }
@@ -2336,12 +2437,12 @@ function setupTeamUI() {
     try {
       teamMsg('');
       if (acc) {
+        const inv = pendingInvites.find(i => i.id === id);
         await rpc('accept_invite', { p_invite_id: id });
         showToast(t('inviteAccepted'));
-        // refresh my profile (now has manager_id) and pull any assigned schedules
-        try { setAuthUserFromProfile(authUser.email, unrow(await rpc('init_profile', { p_email: authUser.email }))); } catch (er) {}
+        await loadTeams();
         await syncTeam();
-        await cloudPull();
+        if (inv && inv.teamId) await switchTeam(inv.teamId);   // jump into the joined team
       } else {
         await rpc('decline_invite', { p_invite_id: id });
         showToast(t('inviteDeclined'));
@@ -2349,8 +2450,6 @@ function setupTeamUI() {
       }
       renderTeam();
       reflectAuth();
-      const useful = (authUser && authUser.role === 'manager') || pendingInvites.length || (authUser && authUser.managerId);
-      if (!useful) modal.hidden = true;
     } catch (err) { teamMsg(err.message); }
   });
 }
@@ -2373,7 +2472,7 @@ function setupCloudUI() {
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try { await authFetch('/sign-out', { method: 'POST', body: '{}' }); } catch (e) {}
     setSessionToken(null); authUser = null; dataJwt = null; dataJwtExp = 0;
-    teamMembers = []; pendingInvites = [];
+    teams = []; activeTeamId = null; teamMembers = []; pendingInvites = [];
     reflectAuth(); modal.hidden = true;
   });
   setupTeamUI();

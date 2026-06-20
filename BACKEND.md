@@ -1,9 +1,10 @@
 # Keeping Cadence — Backend (Neon, server-less)
 
 The front-end (`app.html`) runs fully on its own. The cloud layer adds
-**accounts, cross-device sync, and manager/member teams** (invite people, assign
-schedules, and split the plan from the actual hours). It is **"max-Neon"**: the
-browser talks directly to Neon, with **no custom server**.
+**accounts, cross-device sync, and many-to-many teams** (any account can create
+and join many teams, invite people, assign schedules, and split the plan from the
+actual hours). It is **"max-Neon"**: the browser talks directly to Neon, with
+**no custom server**.
 
 ```
 Browser (static, on Vercel)
@@ -26,26 +27,29 @@ Browser (static, on Vercel)
 
 ## Accounts & teams
 
-Two self-serve roles, chosen at sign-up (`init_profile(p_email, p_role)`):
+There are **no roles**. Every account is equal and can both **own** teams (it
+created them) and **join** teams (by invite) — many of each, at the same time.
+`init_profile(p_email)` also guarantees you a personal default team.
 
-- **Manager** — creates schedules, invites users by email, and assigns each
-  schedule to a team member. Authors the **plan**; sees each member's **logged
-  hours** overlaid (plan vs. actual).
-- **User** — accepts a manager's invite, then sees the schedules assigned to them
-  and fills in **actual hours only**. A user with no manager is a **solo**
-  account: the original single-person flow, where one person edits everything.
+- A **team** is owned by its creator and groups **schedules**. The owner authors
+  the **plan** and assigns each schedule to a member; members see the schedules
+  assigned to them and fill in **actual hours only**.
+- "Role" is therefore **per-team and derived**: you are the *owner* of a team you
+  created (author plans, invite, assign) and a *member* of a team you joined (log
+  hours). The client tracks an **active team**; schedules belong to it, and a
+  toolbar selector switches between teams.
 
-The split is enforced in Postgres: `save_plan` (owner) preserves a member's
-`actualHours`; `save_actuals` (assigned member) preserves the plan. The client
-mirrors it (an assignee sees the plan read-only and edits only hours; a manager
-sees logged hours read-only beside the plan). Anonymous, account-free sharing
-still uses the client-side `#s=` hash link.
+The plan-vs-actuals split is enforced in Postgres: `save_plan` (team owner)
+preserves a member's `actualHours`; `save_actuals` (assigned member) preserves
+the plan. The client mirrors it (a member sees the plan read-only and edits only
+hours; an owner sees logged hours read-only beside the plan). Anonymous,
+account-free sharing still uses the client-side `#s=` hash link.
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `db/schema.sql` | The whole backend: `profiles`, `schedules`, `weeks`, `team_invites` + RLS policies + the RPCs + Data API grants. Run once against the Neon project. |
+| `db/schema.sql` | The whole backend: `profiles`, `teams`, `team_members`, `schedules`, `weeks`, `team_invites` + RLS policies + the RPCs + Data API grants. A clean rebuild — drops the app tables first, then recreates them. Run once against the Neon project. |
 | `app.html` | Front-end **and** the cloud client (the `CLOUD` block + the auth / Data API / RPC calls). |
 | `NEON-REBUILD.md` | Architecture decision + build status (Phase 1 solo, Phase 2 teams). |
 
@@ -99,23 +103,27 @@ landing, never break the app.
 ## RPC reference (POST `/rpc/<name>`, JSON body uses these arg names)
 | Function | Who | Effect |
 |---|---|---|
-| `init_profile(p_email, p_role?)` | any signed-in | Create your profile on first sign-in (idempotent; role set only on creation). |
-| `invite_to_team(p_email)` | manager | Invite a user by email. |
-| `accept_invite(p_invite_id)` / `decline_invite(p_invite_id)` | invitee | Join / dismiss a pending invite. |
-| `create_schedule(p_name, p_color?, p_assigned_user_id?)` | owner (manager to assign) | New schedule. |
-| `update_schedule(p_schedule_id, p_name?, p_color?, p_assigned_user_id?, p_clear_assignee?)` | owner | Rename / recolor / (re)assign. |
-| `delete_schedule(p_schedule_id)` | owner | Delete (its weeks cascade). |
-| `save_plan(p_schedule_id, p_week_start, p_days)` | owner | Write the week's plan; preserves a member's `actualHours`. |
+| `init_profile(p_email)` | any signed-in | Create your profile on first sign-in (idempotent); guarantees you own a personal default team. |
+| `create_team(p_name)` · `rename_team(p_team_id, p_name)` · `delete_team(p_team_id)` | any · owner | Create a team you own; rename / delete one you own (delete cascades). |
+| `invite_to_team(p_team_id, p_email)` | team owner | Invite someone to that team by email. |
+| `accept_invite(p_invite_id)` / `decline_invite(p_invite_id)` | invitee | Join (adds a `team_members` row) / dismiss a pending invite. |
+| `create_schedule(p_team_id, p_name, p_color?, p_assigned_user_id?)` | team owner | New schedule in that team. |
+| `update_schedule(p_schedule_id, p_name?, p_color?, p_assigned_user_id?, p_clear_assignee?)` | team owner | Rename / recolor / (re)assign. |
+| `delete_schedule(p_schedule_id)` | team owner | Delete (its weeks cascade). |
+| `save_plan(p_schedule_id, p_week_start, p_days)` | team owner | Write the week's plan; preserves a member's `actualHours`. |
 | `save_actuals(p_schedule_id, p_week_start, p_actuals)` | assigned member | Write only the week's actual hours; preserves the plan. |
+| `remove_member(p_team_id, p_user_id)` / `leave_team(p_team_id)` | owner / member | Remove a member from your team / leave a team you joined. |
 
 ## Verify (against live Neon)
 The schema + client logic are unit-tested, but do a first live pass after
 provisioning:
-- [ ] Sign up (as **user** and as **manager**) → `init_profile` returns your row; reload keeps you signed in.
-- [ ] Solo: create a schedule, edit a day, reload on another device → it syncs.
-- [ ] Manager invites a user's email → that user sees the invite, accepts, and appears in the manager's roster.
-- [ ] Manager assigns a schedule → the user sees it, can set actual hours but **not** the plan; the manager sees the logged hours.
-- [ ] RLS: a user cannot read another team's schedules; each RPC rejects callers who aren't the owner / assignee.
+- [ ] Sign up → `init_profile` returns your row and you get a personal default team; reload keeps you signed in.
+- [ ] Create a schedule, edit a day, reload on another device → it syncs.
+- [ ] Create a second team and switch between them (toolbar selector) → each shows its own schedules.
+- [ ] Owner invites an email → that account sees the invite, accepts, joins the team, and appears in the roster.
+- [ ] Owner assigns a schedule → the member sees it, can set actual hours but **not** the plan; the owner sees the logged hours.
+- [ ] One account is owner of team A and member of team B at the same time.
+- [ ] RLS: you cannot read schedules of a team you neither own nor were assigned in; each RPC rejects non-owners / non-assignees.
 
 ## Deferred
 **Billing (Stripe).** Neon can't receive webhooks, so subscriptions would need
