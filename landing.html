@@ -282,10 +282,10 @@
       var v = dict[el.getAttribute("data-i18n")];
       if (v != null) el.textContent = v;
     });
-    try { localStorage.setItem("kc-landing-lang", l); } catch (e) {}
+    try { localStorage.setItem("keepingcadence-landing-lang", l); } catch (e) {}
   }
   var saved = null;
-  try { saved = localStorage.getItem("kc-landing-lang"); } catch (e) {}
+  try { saved = localStorage.getItem("keepingcadence-landing-lang"); } catch (e) {}
   var lang = (saved === "en" || saved === "es") ? saved
     : ((navigator.language || "").toLowerCase().indexOf("es") === 0 ? "es" : "en");
   applyLang(lang);

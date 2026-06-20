@@ -810,10 +810,10 @@
 </div>
 
 <script>
-const DRAFT_KEY = 'keeping-cadence-draft';
-const SAVED_AT_KEY = 'keeping-cadence-saved-at';
-const LANG_KEY = 'keeping-cadence-lang';
-const SETTINGS_KEY = 'keeping-cadence-settings';
+const DRAFT_KEY = 'keepingcadence-draft';
+const SAVED_AT_KEY = 'keepingcadence-saved-at';
+const LANG_KEY = 'keepingcadence-lang';
+const SETTINGS_KEY = 'keepingcadence-settings';
 // Preserve data saved under the project's former name (one-time copy).
 try {
   [['nanny-schedule-draft', DRAFT_KEY], ['nanny-schedule-saved-at', SAVED_AT_KEY],
@@ -832,13 +832,13 @@ const CLOUD = {
   authBase: 'https://ep-tiny-sun-a6wesvb9.neonauth.us-west-2.aws.neon.tech/neondb/auth',
   dataApi:  'https://ep-tiny-sun-a6wesvb9.apirest.us-west-2.aws.neon.tech/neondb/rest/v1',
 };
-const SESSION_KEY = 'keeping-cadence-session';
+const SESSION_KEY = 'keepingcadence-session';
 let authUser = null;          // { email, userId } once signed in
 let teams = [];               // teams I can see: [{ id, ownerId, name }] (own + joined)
-let activeTeamId = (function () { try { return localStorage.getItem('kc-active-team') || null; } catch (e) { return null; } })();
+let activeTeamId = (function () { try { return localStorage.getItem('keepingcadence-active-team') || null; } catch (e) { return null; } })();
 let teamMembers = [];         // roster of the active team if I own it: [{ userId, email }]
 let pendingInvites = [];      // invites addressed to me: [{ id, teamId }]
-function saveActiveTeam() { try { localStorage.setItem('kc-active-team', activeTeamId || ''); } catch (e) {} }
+function saveActiveTeam() { try { localStorage.setItem('keepingcadence-active-team', activeTeamId || ''); } catch (e) {} }
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   mode: 'auto'
