@@ -104,13 +104,13 @@
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; box-shadow: var(--shadow);
   }
-  .toolbar button, .toolbar .file-label {
+  .toolbar button {
     font: inherit; padding: 0.4rem 0.85rem;
     background: var(--bg); border: 1px solid var(--border);
     color: var(--ink); border-radius: 7px; cursor: pointer;
     display: inline-block;
   }
-  .toolbar button:hover, .toolbar .file-label:hover { border-color: var(--accent); }
+  .toolbar button:hover { border-color: var(--accent); }
   .toolbar .week-picker {
     display: inline-flex; align-items: center; gap: 0.4rem;
     color: var(--muted); font-size: 0.9rem;
@@ -333,11 +333,6 @@
   .week-summary .est { color: var(--ink); font-weight: 600; }
   .week-summary .actual { color: var(--accent); font-weight: 600; }
   .week-summary .sep { opacity: 0.4; margin: 0 0.35rem; }
-  .day-title {
-    color: var(--accent); font-weight: 500;
-    margin-bottom: 0.2rem; font-size: 0.95rem;
-  }
-  .day-plan { white-space: pre-wrap; }
   .day .field { margin-bottom: 0.55rem; }
   .day .field:last-child { margin-bottom: 0; }
   .day-actions {
@@ -515,7 +510,6 @@
   .team-onteam { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.2rem; }
   .role-hint { color: var(--muted); font-size: 0.85rem; margin: 0.15rem 0 0.55rem; }
   .plan-recap { margin-bottom: 0.5rem; }
-  .plan-recap .day-title { margin-top: 0.2rem; }
   .logged-recap { margin-top: 0.35rem; }
 
   @media (max-width: 520px) {
@@ -536,7 +530,7 @@
       padding: 0.45rem; gap: 0.3rem;
       margin-bottom: 0.55rem;
     }
-    .toolbar button, .toolbar .file-label {
+    .toolbar button {
       padding: 0.3rem 0.55rem; font-size: 0.85rem;
     }
     .toolbar .week-picker {
@@ -579,9 +573,6 @@
     .day-track-axis { height: 0.7rem; }
     .day-track-axis .lbl { font-size: 0.56rem; }
     .day-track { height: 10px; }
-
-    .day-title { font-size: 0.85rem; margin-bottom: 0.1rem; }
-    .day-plan { font-size: 0.85rem; line-height: 1.3; }
 
     .day .field { margin-bottom: 0.5rem; }
     .day .field > label { font-size: 0.7rem; margin-bottom: 0.2rem; }
@@ -629,6 +620,7 @@
         <button id="teamBtn" type="button" hidden>Team</button>
         <button id="accountBtn" type="button" hidden data-i18n="signIn">Sign in</button>
         <button id="shareBtn" data-i18n="share">Share</button>
+        <button id="settingsBtn" type="button" data-i18n-aria-label="settings" aria-label="Settings">⚙</button>
         <button id="toggleMode" class="primary" data-i18n="edit">Edit</button>
       </div>
     </div>
@@ -636,14 +628,8 @@
   </header>
 
   <div class="toolbar editable">
-    <button id="exportBtn" data-i18n="export">Export</button>
-    <label class="file-label">
-      <span data-i18n="import">Import</span>
-      <input type="file" id="importFile" accept=".json" hidden>
-    </label>
     <button id="duplicateBtn" data-i18n="duplicate">Duplicate &rarr; next week</button>
     <button id="newWeekBtn" data-i18n="newWeek">New (blank) week</button>
-    <button id="settingsBtn" data-i18n="settings">Settings</button>
     <div class="week-picker">
       <span data-i18n="weekOf">Week of</span>
       <input type="date" id="weekStart">
@@ -747,22 +733,6 @@
         <option value="dark" data-i18n="modeDark">Dark</option>
       </select>
     </div>
-    <div class="setting-row">
-      <label for="setStartMin" data-i18n="earliestStart">Earliest start</label>
-      <input type="time" id="setStartMin">
-    </div>
-    <div class="setting-row">
-      <label for="setStartMax" data-i18n="latestStart">Latest start</label>
-      <input type="time" id="setStartMax">
-    </div>
-    <div class="setting-row">
-      <label for="setEndMin" data-i18n="earliestEnd">Earliest end</label>
-      <input type="time" id="setEndMin">
-    </div>
-    <div class="setting-row">
-      <label for="setEndMax" data-i18n="latestEnd">Latest end</label>
-      <input type="time" id="setEndMax">
-    </div>
     <div class="modal-actions">
       <button id="settingsResetBtn" type="button" data-i18n="reset">Reset</button>
       <button id="settingsCancelBtn" type="button" data-modal-close data-i18n="cancel">Cancel</button>
@@ -833,11 +803,12 @@ let teamMembers = [];         // manager's roster: [{ userId, email }]
 let pendingInvites = [];      // invites addressed to me: [{ id, manager_id }]
 let openedFromShare = false;
 const DEFAULT_SETTINGS = {
-  startMin: '07:00', startMax: '15:00',
-  endMin: '12:00',  endMax: '20:00',
   theme: 'standard',
   mode: 'auto'
 };
+// Fixed daily window: the hours selectable in the dropdowns and the span of the timeline axis.
+const DAY_START = '06:00';
+const DAY_END = '22:00';
 
 // Two themes, each with a light + dark palette (the Mode toggle picks which).
 // Base is minimal/neutral; the schedule "highlights" are a dedicated h1–h10 set
@@ -916,8 +887,6 @@ const T = {
     signedInAs: 'Signed in as',
     done: 'Done',
     share: 'Share',
-    export: 'Export',
-    import: 'Import',
     toggleLanguage: 'Toggle language',
     duplicate: 'Duplicate → next week',
     newWeek: 'New (blank) week',
@@ -928,20 +897,12 @@ const T = {
     modeAuto: 'Auto (system)',
     modeLight: 'Light',
     modeDark: 'Dark',
-    earliestStart: 'Earliest start',
-    latestStart: 'Latest start',
-    earliestEnd: 'Earliest end',
-    latestEnd: 'Latest end',
     save: 'Save',
     cancel: 'Cancel',
     reset: 'Reset',
     weekOf: 'Week of',
     hours: 'Hours',
     dayOff: 'Day Off',
-    themeLabel: 'Theme (optional)',
-    themePlaceholder: 'e.g. Park day',
-    planLabel: 'Plan',
-    planPlaceholder: "What's happening that day...",
     actualHoursLabel: 'Hours worked',
     weekScheduledLabel: 'Scheduled',
     masterView: 'All',
@@ -961,7 +922,7 @@ const T = {
     helpEditTitle: 'Editing a day',
     helpEditBody: "Tap 'Edit' at the top right, change the times in the dropdowns, log how many hours were actually worked, then tap 'Done' to save.",
     helpSettingsTitle: 'Settings',
-    helpSettingsBody: "In edit mode, the 'Settings' button lets you change the color theme, light/dark mode, and the time ranges that appear in the dropdowns.",
+    helpSettingsBody: "The 'Settings' button (top right) lets you change the color theme and switch between light and dark mode.",
     close: 'Close',
     saving: 'Saving…',
     saved: 'Saved',
@@ -974,8 +935,6 @@ const T = {
     dayCleared: 'Day cleared',
     confirmNewWeek: 'Start a fresh week? The current draft will be replaced.',
     confirmDuplicate: 'Duplicate to next week? You can\'t navigate back to the current one.',
-    loadError: 'Could not load file: ',
-    invalidFile: 'Not a valid schedule file.',
     sharePrompt: 'Copy this share link:',
     team: 'Team',
     teamTitle: 'Team',
@@ -1019,8 +978,6 @@ const T = {
     signedInAs: 'Sesión iniciada como',
     done: 'Listo',
     share: 'Compartir',
-    export: 'Exportar',
-    import: 'Importar',
     toggleLanguage: 'Cambiar idioma',
     duplicate: 'Duplicar → próxima semana',
     newWeek: 'Semana en blanco',
@@ -1031,20 +988,12 @@ const T = {
     modeAuto: 'Automático (sistema)',
     modeLight: 'Claro',
     modeDark: 'Oscuro',
-    earliestStart: 'Inicio más temprano',
-    latestStart: 'Inicio más tarde',
-    earliestEnd: 'Fin más temprano',
-    latestEnd: 'Fin más tarde',
     save: 'Guardar',
     cancel: 'Cancelar',
     reset: 'Restablecer',
     weekOf: 'Semana del',
     hours: 'Horas',
     dayOff: 'Día libre',
-    themeLabel: 'Título (opcional)',
-    themePlaceholder: 'p. ej. Día de parque',
-    planLabel: 'Plan',
-    planPlaceholder: 'Lo que va a pasar ese día...',
     actualHoursLabel: 'Horas trabajadas',
     weekScheduledLabel: 'Programado',
     masterView: 'Todos',
@@ -1064,7 +1013,7 @@ const T = {
     helpEditTitle: 'Editar un día',
     helpEditBody: "Toca 'Editar' arriba a la derecha, cambia las horas en los menús, registra cuántas horas se trabajaron realmente y toca 'Listo' para guardar.",
     helpSettingsTitle: 'Ajustes',
-    helpSettingsBody: "En modo edición, el botón 'Ajustes' permite cambiar el tema de color, modo claro/oscuro y los rangos de hora disponibles en los menús.",
+    helpSettingsBody: "El botón 'Ajustes' (arriba a la derecha) permite cambiar el tema de color y alternar entre modo claro y oscuro.",
     close: 'Cerrar',
     saving: 'Guardando…',
     saved: 'Guardado',
@@ -1077,8 +1026,6 @@ const T = {
     dayCleared: 'Día limpiado',
     confirmNewWeek: '¿Empezar una semana nueva? El borrador actual será reemplazado.',
     confirmDuplicate: '¿Duplicar a la próxima semana? No podrás volver a la actual.',
-    loadError: 'No se pudo cargar el archivo: ',
-    invalidFile: 'Archivo de horario no válido.',
     sharePrompt: 'Copia este enlace:',
     team: 'Equipo',
     teamTitle: 'Equipo',
@@ -1122,7 +1069,7 @@ let lastSavedAt = null;
 let editingDayIndex = null;
 
 function emptyDay() {
-  return { title: '', plan: '', start: '', end: '', actualHours: '' };
+  return { start: '', end: '', actualHours: '' };
 }
 
 function hhmmToMinutes(hhmm) {
@@ -1142,8 +1089,6 @@ function minutesToHhmm(mins) {
 function normalizeDay(d) {
   d = d || {};
   return {
-    title: d.title || '',
-    plan: d.plan || '',
     start: d.start || '',
     end: d.end || '',
     actualHours: (d.actualHours === 0 || d.actualHours) ? String(d.actualHours) : ''
@@ -1366,10 +1311,7 @@ function dayActualRowHtml(day) {
 // Read-only plan shown to an assigned member while they edit hours (the normal
 // .readonly block is hidden in edit mode, so they'd otherwise lose context).
 function planRecapHtml(day) {
-  let html = dayTimesRowHtml(day);
-  if (day.title.trim()) html += `<div class="day-title">${escapeHtml(day.title)}</div>`;
-  if (day.plan.trim()) html += `<div class="day-plan">${escapeHtml(day.plan)}</div>`;
-  return `<div class="plan-recap">${html}</div>`;
+  return `<div class="plan-recap">${dayTimesRowHtml(day)}</div>`;
 }
 
 // Read-only logged hours shown to a manager editing an assigned schedule's plan,
@@ -1449,8 +1391,8 @@ function fmtTickHour(mins) {
 }
 
 function dayTimelineHtml(day, dayName, dateLabel) {
-  const axisMin = hhmmToMinutes(settings.startMin);
-  const axisMax = hhmmToMinutes(settings.endMax);
+  const axisMin = hhmmToMinutes(DAY_START);
+  const axisMax = hhmmToMinutes(DAY_END);
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '';
   const range = axisMax - axisMin;
 
@@ -1571,8 +1513,8 @@ function renderMasterDays() {
 }
 
 function masterBarHtml(day, colorVar) {
-  const axisMin = hhmmToMinutes(settings.startMin);
-  const axisMax = hhmmToMinutes(settings.endMax);
+  const axisMin = hhmmToMinutes(DAY_START);
+  const axisMax = hhmmToMinutes(DAY_END);
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '<div class="day-track master-track"></div>';
   const range = axisMax - axisMin;
   let bars = '';
@@ -1634,26 +1576,16 @@ function render() {
         ${dayTimelineHtml(day, dayNameShort, dateLabel)}
         ${dayTimesRowHtml(day)}
         ${dayActualRowHtml(day)}
-        ${day.title.trim() ? `<div class="day-title">${escapeHtml(day.title)}</div>` : ''}
-        ${day.plan.trim() ? `<div class="day-plan">${escapeHtml(day.plan)}</div>` : ''}
       </div>
       <div class="editable">
         ${canEditPlan ? `
         <div class="field">
           <label>${escapeHtml(t('hours'))}</label>
           <div class="time-row">
-            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start, settings.startMin, settings.startMax)}</select>
+            <select class="time-select" data-day="${i}" data-field="start">${timeOptionsHtml(day.start, DAY_START, DAY_END)}</select>
             <span class="dash">–</span>
-            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end, settings.endMin, settings.endMax)}</select>
+            <select class="time-select" data-day="${i}" data-field="end">${timeOptionsHtml(day.end, DAY_START, DAY_END)}</select>
           </div>
-        </div>
-        <div class="field">
-          <label>${escapeHtml(t('themeLabel'))}</label>
-          <input type="text" data-day="${i}" data-field="title" value="${escapeHtml(day.title)}" placeholder="${escapeHtml(t('themePlaceholder'))}">
-        </div>
-        <div class="field">
-          <label>${escapeHtml(t('planLabel'))}</label>
-          <textarea data-day="${i}" data-field="plan" placeholder="${escapeHtml(t('planPlaceholder'))}">${escapeHtml(day.plan)}</textarea>
         </div>` : planRecapHtml(day)}
         ${canEditActuals ? `
         <div class="field">
@@ -1723,10 +1655,6 @@ function loadSettings() {
     const p = JSON.parse(raw);
     const validModes = ['auto', 'light', 'dark'];
     return {
-      startMin: p.startMin || DEFAULT_SETTINGS.startMin,
-      startMax: p.startMax || DEFAULT_SETTINGS.startMax,
-      endMin:   p.endMin   || DEFAULT_SETTINGS.endMin,
-      endMax:   p.endMax   || DEFAULT_SETTINGS.endMax,
       theme:    (THEMES[p.theme] ? p.theme : DEFAULT_SETTINGS.theme),
       mode:     (validModes.includes(p.mode) ? p.mode : DEFAULT_SETTINGS.mode)
     };
@@ -1893,8 +1821,7 @@ document.getElementById('days').addEventListener('click', e => {
     syncFromInputs();
     const days = activeDays();
     const d = days[idx];
-    const hasContent = d.title.trim() || d.plan.trim() ||
-      d.start || d.end;
+    const hasContent = d.start || d.end;
     if (hasContent && !confirm(t('confirmClearDay'))) return;
     days[idx] = emptyDay();
     render();
@@ -1929,46 +1856,10 @@ document.getElementById('days').addEventListener('click', e => {
   render();
 });
 
-document.getElementById('exportBtn').addEventListener('click', () => {
-  syncFromInputs();
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `schedule-${state.weekStart}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById('importFile').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const data = JSON.parse(ev.target.result);
-      const migrated = migrateState(data);
-      if (!migrated) {
-        throw new Error(t('invalidFile'));
-      }
-      state = migrated;
-      editingDayIndex = null;
-      render();
-      scheduleSave();
-    } catch (err) {
-      alert(t('loadError') + err.message);
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
-
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
   const hasContent = state.schedules.some(sched => sched.days.some(d =>
-    d.title.trim() || d.plan.trim() || d.start || d.end));
+    d.start || d.end));
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = {
     weekStart: addDays(state.weekStart, 7),
@@ -2049,10 +1940,6 @@ function currentModalSelections() {
 function openSettings() {
   populateThemeOptions(settings.theme);
   document.getElementById('setMode').value     = settings.mode;
-  document.getElementById('setStartMin').value = settings.startMin;
-  document.getElementById('setStartMax').value = settings.startMax;
-  document.getElementById('setEndMin').value   = settings.endMin;
-  document.getElementById('setEndMax').value   = settings.endMax;
   themeOnOpen = settings.theme;
   modeOnOpen = settings.mode;
   settingsModal.hidden = false;
@@ -2089,10 +1976,6 @@ document.getElementById('setMode').addEventListener('change', () => {
 });
 
 document.getElementById('settingsResetBtn').addEventListener('click', () => {
-  document.getElementById('setStartMin').value = DEFAULT_SETTINGS.startMin;
-  document.getElementById('setStartMax').value = DEFAULT_SETTINGS.startMax;
-  document.getElementById('setEndMin').value   = DEFAULT_SETTINGS.endMin;
-  document.getElementById('setEndMax').value   = DEFAULT_SETTINGS.endMax;
   document.getElementById('setTheme').value    = DEFAULT_SETTINGS.theme;
   document.getElementById('setMode').value     = DEFAULT_SETTINGS.mode;
   applyTheme(DEFAULT_SETTINGS.theme, DEFAULT_SETTINGS.mode);
@@ -2102,20 +1985,9 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
   const sel = currentModalSelections();
   const validModes = ['auto', 'light', 'dark'];
   const next = {
-    startMin: document.getElementById('setStartMin').value || DEFAULT_SETTINGS.startMin,
-    startMax: document.getElementById('setStartMax').value || DEFAULT_SETTINGS.startMax,
-    endMin:   document.getElementById('setEndMin').value   || DEFAULT_SETTINGS.endMin,
-    endMax:   document.getElementById('setEndMax').value   || DEFAULT_SETTINGS.endMax,
     theme:    THEMES[sel.theme] ? sel.theme : DEFAULT_SETTINGS.theme,
     mode:     validModes.includes(sel.mode) ? sel.mode : DEFAULT_SETTINGS.mode
   };
-  // If max < min, swap so the range is always valid.
-  if (hhmmToMinutes(next.startMax) < hhmmToMinutes(next.startMin)) {
-    [next.startMin, next.startMax] = [next.startMax, next.startMin];
-  }
-  if (hhmmToMinutes(next.endMax) < hhmmToMinutes(next.endMin)) {
-    [next.endMin, next.endMax] = [next.endMax, next.endMin];
-  }
   settings = next;
   saveSettings(settings);
   applyTheme(settings.theme, settings.mode);
@@ -2192,7 +2064,7 @@ function setAuthUserFromProfile(email, prof) {
   };
 }
 function scheduleHasContent(s) {
-  return s.days && s.days.some(d => (d.title && d.title.trim()) || (d.plan && d.plan.trim()) ||
+  return s.days && s.days.some(d =>
     d.start || d.end || (d.actualHours !== '' && d.actualHours != null));
 }
 
