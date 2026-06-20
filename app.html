@@ -246,6 +246,7 @@
     white-space: nowrap;
   }
   .day-times .dash { color: var(--muted); font-weight: 700; }
+  .seg-sep { color: var(--muted); }
   .day-times.invalid { color: var(--warning); }
   .day-times.day-off-mark {
     color: var(--muted); font-style: italic; font-weight: 400;
@@ -377,6 +378,8 @@
   .grid-readout {
     font-weight: 600; color: var(--ink);
     font-variant-numeric: tabular-nums; font-size: 0.95rem;
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .grid-readout.hint { font-weight: 400; color: var(--muted); }
   .dayoff-btn {
@@ -817,9 +820,10 @@ let openedFromShare = false;
 const DEFAULT_SETTINGS = {
   mode: 'auto'
 };
-// Fixed daily window: the hours selectable in the dropdowns and the span of the timeline axis.
+// Fixed daily window and slot size for the tap-to-toggle time grid / timeline axis.
 const DAY_START = '06:00';
 const DAY_END = '22:00';
+const GRID_STEP = 30; // minutes per block
 
 // Colour-blind-safe palette, one light + one dark (the header toggle picks
 // which). Base is minimal/neutral; the schedule "highlights" (h1–h10,
@@ -1053,7 +1057,7 @@ let lastSavedAt = null;
 let editingDayIndex = null;
 
 function emptyDay() {
-  return { start: '', end: '', actualHours: '' };
+  return { blocks: [], actualHours: '' };
 }
 
 function hhmmToMinutes(hhmm) {
@@ -1070,20 +1074,33 @@ function minutesToHhmm(mins) {
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
+// Legacy data stored a single start/end span; expand it into 30-min blocks.
+function legacyRangeToBlocks(start, end) {
+  const base = hhmmToMinutes(DAY_START);
+  const s = hhmmToMinutes(start), e = hhmmToMinutes(end);
+  if (s === null || e === null || e <= s) return [];
+  const first = base + Math.round((s - base) / GRID_STEP) * GRID_STEP;
+  const lastEnd = base + Math.round((e - base) / GRID_STEP) * GRID_STEP;
+  const out = [];
+  for (let m = first; m < lastEnd; m += GRID_STEP) if (m >= base) out.push(m);
+  return out;
+}
+
 function normalizeDay(d) {
   d = d || {};
+  const base = hhmmToMinutes(DAY_START), top = hhmmToMinutes(DAY_END);
+  let blocks = Array.isArray(d.blocks)
+    ? d.blocks.map(Number).filter(Number.isFinite)
+    : legacyRangeToBlocks(d.start, d.end);
+  blocks = [...new Set(blocks)].filter(m => m >= base && m < top).sort((a, b) => a - b);
   return {
-    start: d.start || '',
-    end: d.end || '',
+    blocks,
     actualHours: (d.actualHours === 0 || d.actualHours) ? String(d.actualHours) : ''
   };
 }
 
 function estimatedMinutes(day) {
-  const s = hhmmToMinutes(day.start);
-  const e = hhmmToMinutes(day.end);
-  if (s === null || e === null || e <= s) return 0;
-  return e - s;
+  return (Array.isArray(day.blocks) ? day.blocks.length : 0) * GRID_STEP;
 }
 
 function fmtHoursNumber(h) {
@@ -1280,23 +1297,35 @@ function fmtDayDateShort(iso, offset) {
   return `${m}/${day}`;
 }
 
-// --- Tap-to-set time grid ---------------------------------------------------
-// A day's plan is a single contiguous span. The grid shows 30-minute blocks
-// across the DAY_START–DAY_END window; tapping extends, trims, or clears it.
-const GRID_STEP = 30;
+// --- Tap-to-toggle time grid ------------------------------------------------
+// A day's plan is a set of independent 30-minute blocks (gaps allowed). Each
+// tap toggles one block; contiguous blocks merge into segments for display.
 function gridBlockCount() {
   return (hhmmToMinutes(DAY_END) - hhmmToMinutes(DAY_START)) / GRID_STEP;
 }
+function blockMinForIdx(idx) { return hhmmToMinutes(DAY_START) + idx * GRID_STEP; }
+function dayBlocks(day) { return Array.isArray(day.blocks) ? day.blocks : []; }
+function isBlockSelected(day, idx) { return dayBlocks(day).indexOf(blockMinForIdx(idx)) !== -1; }
 
-// Current selection as inclusive block indices { a, b }, or null for a day off.
-function selectedBlockRange(day) {
-  const base = hhmmToMinutes(DAY_START);
-  const s = hhmmToMinutes(day.start);
-  const e = hhmmToMinutes(day.end);
-  if (s === null || e === null || e <= s) return null;
-  const a = Math.round((s - base) / GRID_STEP);
-  const b = Math.round((e - base) / GRID_STEP) - 1;
-  return b < a ? null : { a: Math.max(0, a), b: Math.min(gridBlockCount() - 1, b) };
+function toggleBlock(day, idx) {
+  const m = blockMinForIdx(idx);
+  const blocks = dayBlocks(day).slice();
+  const at = blocks.indexOf(m);
+  if (at >= 0) blocks.splice(at, 1);
+  else { blocks.push(m); blocks.sort((a, b) => a - b); }
+  day.blocks = blocks;
+}
+
+// Merge contiguous selected blocks into [{ s, e }] minute segments.
+function daySegments(day) {
+  const sorted = dayBlocks(day).slice().sort((a, b) => a - b);
+  const segs = [];
+  for (const m of sorted) {
+    const last = segs[segs.length - 1];
+    if (last && m === last.e) last.e = m + GRID_STEP;
+    else segs.push({ s: m, e: m + GRID_STEP });
+  }
+  return segs;
 }
 
 // Compact, unambiguous label: en "6a" / "6:30a" / "12p" / "9:30p"; es 24h.
@@ -1308,40 +1337,19 @@ function blockLabel(min) {
   return m === 0 ? `${hh}${ap}` : `${hh}:${String(m).padStart(2, '0')}${ap}`;
 }
 
-// Tap block `idx`: start fresh, extend toward it, trim an end, or clear.
-function applyBlockTap(day, idx) {
-  const base = hhmmToMinutes(DAY_START);
-  const r = selectedBlockRange(day);
-  let a, b;
-  if (!r) { a = idx; b = idx; }
-  else if (idx < r.a) { a = idx; b = r.b; }
-  else if (idx > r.b) { a = r.a; b = idx; }
-  else if (r.a === r.b) { day.start = ''; day.end = ''; return; }
-  else if (idx === r.a) { a = r.a + 1; b = r.b; }
-  else if (idx === r.b) { a = r.a; b = r.b - 1; }
-  else { a = r.a; b = idx; }
-  day.start = minutesToHhmm(base + a * GRID_STEP);
-  day.end = minutesToHhmm(base + (b + 1) * GRID_STEP);
-}
-
 function gridReadoutHtml(day) {
-  const r = selectedBlockRange(day);
-  if (!r) return `<span class="grid-readout hint">${escapeHtml(t('tapToSetHours'))}</span>`;
-  const base = hhmmToMinutes(DAY_START);
-  const from = blockLabel(base + r.a * GRID_STEP);
-  const to = blockLabel(base + (r.b + 1) * GRID_STEP);
+  const segs = daySegments(day);
+  if (!segs.length) return `<span class="grid-readout hint">${escapeHtml(t('tapToSetHours'))}</span>`;
+  const parts = segs.map(s => `${blockLabel(s.s)}–${blockLabel(s.e)}`).join(', ');
   const hrs = estimatedHoursDisplay(day);
-  return `<span class="grid-readout">${escapeHtml(from)} – ${escapeHtml(to)}${hrs ? ` · ${escapeHtml(hrs)}` : ''}</span>`;
+  return `<span class="grid-readout">${escapeHtml(parts)}${hrs ? ` · ${escapeHtml(hrs)}` : ''}</span>`;
 }
 
 function dayGridFieldHtml(day, i) {
-  const base = hhmmToMinutes(DAY_START);
   const n = gridBlockCount();
-  const r = selectedBlockRange(day);
   let cells = '';
   for (let idx = 0; idx < n; idx++) {
-    const inSel = r && idx >= r.a && idx <= r.b;
-    cells += `<button type="button" class="tblock${inSel ? ' sel' : ''}" data-block="${idx}">${escapeHtml(blockLabel(base + idx * GRID_STEP))}</button>`;
+    cells += `<button type="button" class="tblock${isBlockSelected(day, idx) ? ' sel' : ''}" data-block="${idx}">${escapeHtml(blockLabel(blockMinForIdx(idx)))}</button>`;
   }
   return `<div class="field">
     <div class="grid-head">
@@ -1391,26 +1399,14 @@ function loggedRecapHtml(day) {
 }
 
 function dayTimesInlineHtml(day) {
-  const start = fmtTime(day.start);
-  const end = fmtTime(day.end);
-
-  if (!start && !end) {
+  const segs = daySegments(day);
+  if (!segs.length) {
     return `<span class="day-times day-off-mark">${escapeHtml(t('dayOff'))}</span>`;
   }
-
-  let inner = '';
-  if (start) inner += escapeHtml(start);
-  if (start && end) inner += ' <span class="dash">–</span> ';
-  if (end) inner += escapeHtml(end);
-
-  const invalid = isInvalidDayTimes(day);
-  return `<span class="day-times${invalid ? ' invalid' : ''}">${inner}</span>`;
-}
-
-function isInvalidDayTimes(day) {
-  const s = hhmmToMinutes(day.start);
-  const e = hhmmToMinutes(day.end);
-  return s !== null && e !== null && e <= s;
+  const inner = segs.map(s =>
+    `${escapeHtml(fmtTime(minutesToHhmm(s.s)))} <span class="dash">–</span> ${escapeHtml(fmtTime(minutesToHhmm(s.e)))}`
+  ).join('<span class="seg-sep">, </span>');
+  return `<span class="day-times">${inner}</span>`;
 }
 
 function fmtSavedAt(iso) {
@@ -1478,17 +1474,15 @@ function dayTimelineHtml(day, dayName, dateLabel) {
     }
   }
 
-  const sMin = hhmmToMinutes(day.start);
-  const eMin = hhmmToMinutes(day.end);
-  if (sMin !== null && eMin !== null && eMin > sMin) {
-    const sClamped = clamp(sMin, axisMin, axisMax);
-    const eClamped = clamp(eMin, axisMin, axisMax);
+  for (const seg of daySegments(day)) {
+    const sClamped = clamp(seg.s, axisMin, axisMax);
+    const eClamped = clamp(seg.e, axisMin, axisMax);
+    if (eClamped <= sClamped) continue;
     const left = ((sClamped - axisMin) / range) * 100;
     const width = ((eClamped - sClamped) / range) * 100;
     bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></div>`;
   }
 
-  const invalid = isInvalidDayTimes(day);
   const labelInner = (dayName || dateLabel)
     ? `${dayName ? `<span class="dn">${escapeHtml(dayName)}</span>` : ''}${dayName && dateLabel ? ' ' : ''}${dateLabel ? `<span class="dt">${escapeHtml(dateLabel)}</span>` : ''}`
     : '';
@@ -1496,7 +1490,7 @@ function dayTimelineHtml(day, dayName, dateLabel) {
     <span class="day-track-spacer" aria-hidden="true">${labelInner}</span>
     <div class="day-track-axis">${axisHtml}</div>
     <span class="day-track-date">${labelInner}</span>
-    <div class="day-track${invalid ? ' invalid' : ''}">${bars}</div>
+    <div class="day-track">${bars}</div>
   </div>`;
 }
 
@@ -1582,11 +1576,10 @@ function masterBarHtml(day, colorVar) {
   if (axisMin === null || axisMax === null || axisMax <= axisMin) return '<div class="day-track master-track"></div>';
   const range = axisMax - axisMin;
   let bars = '';
-  const sMin = hhmmToMinutes(day.start);
-  const eMin = hhmmToMinutes(day.end);
-  if (sMin !== null && eMin !== null && eMin > sMin) {
-    const sClamped = clamp(sMin, axisMin, axisMax);
-    const eClamped = clamp(eMin, axisMin, axisMax);
+  for (const seg of daySegments(day)) {
+    const sClamped = clamp(seg.s, axisMin, axisMax);
+    const eClamped = clamp(seg.e, axisMin, axisMax);
+    if (eClamped <= sClamped) continue;
     const left = ((sClamped - axisMin) / range) * 100;
     const width = ((eClamped - sClamped) / range) * 100;
     bars += `<div class="t-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:var(--${colorVar})"></div>`;
@@ -1843,7 +1836,7 @@ document.getElementById('days').addEventListener('click', e => {
     if (from < 0 || from > 5) return;
     syncFromInputs();
     const days = activeDays();
-    days[from + 1] = { ...days[from] };
+    days[from + 1] = { ...days[from], blocks: [...dayBlocks(days[from])] };
     render();
     scheduleSave();
     showToast(t('copiedToNext'));
@@ -1856,7 +1849,7 @@ document.getElementById('days').addEventListener('click', e => {
     const days = activeDays();
     if (days[idx]) {
       const sl = blk.closest('.time-grid').scrollLeft;
-      applyBlockTap(days[idx], +blk.dataset.block);
+      toggleBlock(days[idx], +blk.dataset.block);
       render();
       const g = document.querySelector('.day.editing .time-grid');
       if (g) g.scrollLeft = sl;
@@ -1871,7 +1864,7 @@ document.getElementById('days').addEventListener('click', e => {
     const days = activeDays();
     const g0 = dayEl.querySelector('.time-grid');
     const sl = g0 ? g0.scrollLeft : 0;
-    if (days[idx]) { days[idx].start = ''; days[idx].end = ''; }
+    if (days[idx]) { days[idx].blocks = []; }
     render();
     const g = document.querySelector('.day.editing .time-grid');
     if (g) g.scrollLeft = sl;
@@ -1908,7 +1901,7 @@ document.getElementById('days').addEventListener('click', e => {
 document.getElementById('newWeekBtn').addEventListener('click', () => {
   syncFromInputs();
   const hasContent = state.schedules.some(sched => sched.days.some(d =>
-    d.start || d.end));
+    dayBlocks(d).length));
   if (hasContent && !confirm(t('confirmNewWeek'))) return;
   state = {
     weekStart: addDays(state.weekStart, 7),
@@ -2039,7 +2032,7 @@ function setAuthUserFromProfile(email, prof) {
 }
 function scheduleHasContent(s) {
   return s.days && s.days.some(d =>
-    d.start || d.end || (d.actualHours !== '' && d.actualHours != null));
+    dayBlocks(d).length || (d.actualHours !== '' && d.actualHours != null));
 }
 
 let cloudTimer = null;
