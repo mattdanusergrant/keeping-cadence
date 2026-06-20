@@ -569,6 +569,13 @@
     border: 1px solid var(--border); background: var(--bg); color: var(--ink);
   }
   .team-onteam { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.2rem; }
+  .invite-links { display: flex; gap: 0.4rem; margin: 0.1rem 0 0.3rem; flex-wrap: wrap; }
+  .invite-links button {
+    font: inherit; padding: 0.35rem 0.7rem; border-radius: 7px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--border); color: var(--ink);
+  }
+  .invite-links button:hover { border-color: var(--accent); }
+  .invite-links button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .role-hint { color: var(--muted); font-size: 0.85rem; margin: 0.15rem 0 0.55rem; }
   .plan-recap { margin-bottom: 0.5rem; }
   .logged-recap { margin-top: 0.35rem; }
@@ -719,6 +726,7 @@
         <label for="acctPassword" data-i18n="password">Password</label>
         <input type="password" id="acctPassword" autocomplete="current-password">
       </div>
+      <p id="inviteWelcome" hidden style="color:var(--muted);font-size:.9em;margin:.4em 0 0;"></p>
       <p class="account-msg" id="accountMsg" hidden style="color:var(--warning);font-size:.9em;margin:.5em 0 0;"></p>
       <div class="modal-actions">
         <button type="button" data-modal-close data-i18n="cancel">Cancel</button>
@@ -728,6 +736,10 @@
     </div>
     <div id="accountSignedIn" hidden>
       <p><span data-i18n="signedInAs">Signed in as</span> <strong id="accountEmail"></strong></p>
+      <p data-i18n="appInviteHint" style="color:var(--muted);font-size:.9em;margin:.6em 0 .2em;">Invite someone to Keeping Cadence:</p>
+      <div class="invite-links">
+        <button type="button" id="copyAppLinkBtn" class="primary" data-i18n="copyInviteLink">Copy invite link</button>
+      </div>
       <div class="modal-actions">
         <button type="button" data-modal-close data-i18n="close">Close</button>
         <button type="button" id="logoutBtn" data-i18n="signOut">Sign out</button>
@@ -753,6 +765,10 @@
       <div class="team-create">
         <input type="email" id="inviteEmailInput" autocomplete="off">
         <button type="button" id="inviteBtn" class="primary" data-i18n="invite">Invite</button>
+      </div>
+      <div class="invite-links">
+        <button type="button" id="copyTeamLinkBtn" class="primary" data-i18n="copyInviteLink">Copy invite link</button>
+        <button type="button" id="resetTeamLinkBtn" data-i18n="resetLink">Reset</button>
       </div>
       <h3 class="team-subhead" data-i18n="teamMembers">Members</h3>
       <div id="teamMembersList" class="team-list"></div>
@@ -982,7 +998,18 @@ const T = {
     memberRemoved: 'Member removed',
     leaveTeam: 'Leave team',
     confirmLeaveTeam: "Leave this team? You'll stop seeing schedules assigned to you.",
-    leftTeam: 'You left the team'
+    leftTeam: 'You left the team',
+    copyInviteLink: 'Copy invite link',
+    resetLink: 'Reset',
+    linkCopied: 'Invite link copied',
+    linkReset: 'Link reset — old links stop working',
+    confirmResetLink: "Reset this team's invite link? Links you've already shared will stop working.",
+    copyManually: 'Copy this link:',
+    joinedTeam: 'Joined the team',
+    inviteInvalid: 'That invite link is invalid or expired.',
+    appInviteHint: 'Invite someone to Keeping Cadence:',
+    inviteWelcomeApp: "You've been invited to Keeping Cadence — create an account to get started.",
+    inviteWelcomeTeam: "You've been invited to join a team — sign up or sign in to accept."
   },
   es: {
     title: 'Keeping Cadence',
@@ -1067,7 +1094,18 @@ const T = {
     memberRemoved: 'Miembro eliminado',
     leaveTeam: 'Salir del equipo',
     confirmLeaveTeam: '¿Salir de este equipo? Dejarás de ver los horarios asignados a ti.',
-    leftTeam: 'Saliste del equipo'
+    leftTeam: 'Saliste del equipo',
+    copyInviteLink: 'Copiar enlace de invitación',
+    resetLink: 'Restablecer',
+    linkCopied: 'Enlace copiado',
+    linkReset: 'Enlace restablecido — los anteriores dejan de funcionar',
+    confirmResetLink: '¿Restablecer el enlace de este equipo? Los enlaces que ya compartiste dejarán de funcionar.',
+    copyManually: 'Copia este enlace:',
+    joinedTeam: 'Te uniste al equipo',
+    inviteInvalid: 'Ese enlace de invitación no es válido o expiró.',
+    appInviteHint: 'Invita a alguien a Keeping Cadence:',
+    inviteWelcomeApp: 'Te invitaron a Keeping Cadence — crea una cuenta para empezar.',
+    inviteWelcomeTeam: 'Te invitaron a unirte a un equipo — regístrate o inicia sesión para aceptar.'
   }
 };
 
@@ -1793,6 +1831,51 @@ async function copyToClipboard(text) {
   }
 }
 
+// --- Invite links ----------------------------------------------------------
+// App link (#invite) just opens signup. Team link (#team=<token>) signs you in
+// and auto-joins that team. Both are redeemed after auth.
+let pendingJoinToken = null;
+let invitedOnLoad = false;
+function appBaseUrl() { return location.origin + location.pathname; }
+function appInviteUrl() { return appBaseUrl() + '#invite'; }
+function teamInviteUrl(token) { return appBaseUrl() + '#team=' + encodeURIComponent(token); }
+
+// Read an invite out of the URL hash, then strip it so it doesn't linger/re-fire.
+function consumeInviteHash() {
+  const h = location.hash || '';
+  const mTeam = h.match(/[#&]team=([^&]+)/);
+  if (mTeam) { pendingJoinToken = decodeURIComponent(mTeam[1]); invitedOnLoad = true; }
+  else if (/[#&]invite(\b|=)/.test(h)) { invitedOnLoad = true; }
+  if (invitedOnLoad) { try { history.replaceState(null, '', appBaseUrl() + location.search); } catch (e) {} }
+}
+
+async function copyInvite(url, failMsgKey) {
+  const ok = await copyToClipboard(url);
+  if (ok) showToast(t('linkCopied'));
+  else window.prompt(t(failMsgKey || 'copyManually'), url);
+}
+
+// Redeem a captured team-join token once the user is signed in.
+async function redeemPendingJoin() {
+  if (!pendingJoinToken || !authUser) return;
+  const tok = pendingJoinToken; pendingJoinToken = null;
+  try {
+    const res = unrow(await rpc('join_by_token', { p_token: tok }));
+    if (res && res.id) { await switchTeam(res.id); showToast(t('joinedTeam')); }
+  } catch (e) { showToast((e && e.message) || t('inviteInvalid')); }
+}
+
+// On load, once auth state is known: join if signed in, else welcome + open signup.
+async function handleInviteAfterAuth() {
+  if (authUser) { await redeemPendingJoin(); return; }
+  if (!invitedOnLoad) return;
+  const w = document.getElementById('inviteWelcome');
+  if (w) { w.textContent = t(pendingJoinToken ? 'inviteWelcomeTeam' : 'inviteWelcomeApp'); w.hidden = false; }
+  const modal = document.getElementById('accountModal');
+  if (modal) { reflectAuth(); modal.hidden = false; }
+  const email = document.getElementById('acctEmail'); if (email) email.focus();
+}
+
 function setLang(newLang) {
   document.body.classList.remove('lang-' + lang);
   lang = newLang;
@@ -2196,6 +2279,7 @@ async function doAuth(action) {
   if (hadLocal && iOwnActiveTeam()) { try { await flushSaves(); } catch (e) {} }
   await cloudPull();
   await syncTeam();
+  await redeemPendingJoin();
   reflectAuth();
 }
 
@@ -2379,6 +2463,25 @@ function setupTeamUI() {
     } catch (e) { teamMsg(e.message); }
   });
 
+  document.getElementById('copyTeamLinkBtn').addEventListener('click', async () => {
+    if (!activeTeamId) return;
+    try {
+      teamMsg('');
+      const tok = unrow(await rpc('team_invite_link', { p_team_id: activeTeamId }));
+      await copyInvite(teamInviteUrl(String(tok)));
+    } catch (e) { teamMsg(e.message); }
+  });
+
+  document.getElementById('resetTeamLinkBtn').addEventListener('click', async () => {
+    if (!activeTeamId || !confirm(t('confirmResetLink'))) return;
+    try {
+      teamMsg('');
+      const tok = unrow(await rpc('regenerate_team_link', { p_team_id: activeTeamId }));
+      showToast(t('linkReset'));
+      await copyInvite(teamInviteUrl(String(tok)));
+    } catch (e) { teamMsg(e.message); }
+  });
+
   // Reassign a schedule when the owner changes its member dropdown.
   modal.addEventListener('change', async e => {
     const sel = e.target.closest('[data-assign-schedule]');
@@ -2475,14 +2578,17 @@ function setupCloudUI() {
     teams = []; activeTeamId = null; teamMembers = []; pendingInvites = [];
     reflectAuth(); modal.hidden = true;
   });
+  const appLinkBtn = document.getElementById('copyAppLinkBtn');
+  if (appLinkBtn) appLinkBtn.addEventListener('click', () => copyInvite(appInviteUrl()));
   setupTeamUI();
-  restoreSession();
+  restoreSession().then(handleInviteAfterAuth);
 }
 
 (function init() {
   applyTheme();
   document.body.classList.add('lang-' + lang);
   applyStaticTranslations();
+  consumeInviteHash();
   const fromHash = decodeStateFromHash(location.hash);
   if (fromHash) {
     state = fromHash;

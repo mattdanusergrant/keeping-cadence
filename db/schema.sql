@@ -38,6 +38,7 @@ create table teams (
   id          uuid primary key default gen_random_uuid(),
   owner_id    text not null,
   name        text not null,
+  join_token  uuid not null default gen_random_uuid(),  -- secret; builds the invite link
   created_at  timestamptz not null default now()
 );
 create index idx_teams_owner on teams(owner_id);
@@ -346,12 +347,52 @@ begin
   delete from team_members where team_id = p_team_id and user_id = auth.user_id();
 end $$;
 
+-- Invite links: an owner fetches / rotates a team's secret token to build a
+-- shareable link; anyone signed in can join a team by its token (idempotent).
+-- (The app-level invite link is client-only — it just opens signup.)
+create or replace function team_invite_link(p_team_id uuid)
+returns text language plpgsql security definer set search_path = public as $$
+  declare tok uuid;
+begin
+  select join_token into tok from teams where id = p_team_id and owner_id = auth.user_id();
+  if tok is null then raise exception 'not your team'; end if;
+  return tok::text;
+end $$;
+
+create or replace function regenerate_team_link(p_team_id uuid)
+returns text language plpgsql security definer set search_path = public as $$
+  declare tok uuid;
+begin
+  update teams set join_token = gen_random_uuid()
+    where id = p_team_id and owner_id = auth.user_id()
+    returning join_token into tok;
+  if tok is null then raise exception 'not your team'; end if;
+  return tok::text;
+end $$;
+
+create or replace function join_by_token(p_token uuid)
+returns json language plpgsql security definer set search_path = public as $$
+  declare tm teams; my_email text;
+begin
+  select * into tm from teams where join_token = p_token;
+  if tm is null then raise exception 'invalid or expired invite link'; end if;
+  select email into my_email from profiles where user_id = auth.user_id();
+  if tm.owner_id <> auth.user_id() then
+    insert into team_members (team_id, user_id, email)
+    values (tm.id, auth.user_id(), my_email)
+    on conflict (team_id, user_id) do update set email = excluded.email;
+  end if;
+  return json_build_object('id', tm.id, 'name', tm.name, 'owner_id', tm.owner_id);
+end $$;
+
 -- ===========================================================================
 -- Grants for the Data API roles. Reads = SELECT (RLS-filtered); every write goes
 -- through an RPC. The RLS-helper functions are EXECUTEd inside the policies.
 -- ===========================================================================
 grant usage on schema public to authenticated;
-grant select on profiles, teams, team_members, schedules, weeks, team_invites to authenticated;
+grant select on profiles, team_members, schedules, weeks, team_invites to authenticated;
+-- teams: every column except join_token (the invite secret; owners fetch it via RPC)
+grant select (id, owner_id, name, created_at) on teams to authenticated;
 grant execute on function owned_team_ids(), my_team_ids() to authenticated;
 grant execute on function
   init_profile(text),
@@ -367,7 +408,10 @@ grant execute on function
   save_actuals(uuid, date, jsonb),
   delete_schedule(uuid),
   remove_member(uuid, text),
-  leave_team(uuid)
+  leave_team(uuid),
+  team_invite_link(uuid),
+  regenerate_team_link(uuid),
+  join_by_token(uuid)
 to authenticated;
 
 notify pgrst, 'reload schema';
