@@ -1,9 +1,9 @@
--- Keeping Cadence — Neon-native schema (multi-team build, 2026-06-20)
+-- Keeping Cadence — Neon-native schema (multi-team build, 2026-06-21)
 --
 -- Architecture: browser -> Neon Data API (PostgREST) using Neon Auth JWTs.
 -- No custom server. Reads are direct table GETs guarded by RLS; writes go
--- through SECURITY DEFINER RPC functions (POST /rpc/<name>) that enforce the
--- teams rules and the plan-vs-actuals split.
+-- through RPC functions (POST /rpc/<name>) that enforce the teams rules and the
+-- plan-vs-actuals split.
 --
 -- Model: every account is equal — there is no manager/user role. An account can
 -- OWN many teams (it created them) and JOIN many teams (by invite), at the same
@@ -11,14 +11,39 @@
 -- assigned member fills in actual hours.
 --
 -- Apply once (Neon SQL Editor or psql). Safe to re-run (idempotent-ish): it
--- drops the app tables first, so a clean rebuild. UNVERIFIED until run on live Neon.
+-- drops the app tables first, so a clean rebuild. After applying, hit
+-- "Refresh schema cache" on the Data API page so the new RPCs are exposed.
 --
--- auth.user_id() = signed-in user's id (JWT `sub`, text) = neon_auth.users_sync.id
+-- IDENTITY — how an RPC/policy learns "who is the signed-in user":
+--   On this Neon project, the JWT identity only resolves while running as the
+--   `authenticated` role (RLS policies, SECURITY INVOKER functions). Inside a
+--   SECURITY DEFINER function (which runs as the table owner) auth.uid() and the
+--   request.jwt.claims GUC are BOTH unavailable. So we read the user id exactly
+--   once, in the invoker context, via public.current_uid(), and thread it down
+--   to the privileged SECURITY DEFINER workers as a parameter.
+--
+--   public.current_uid()  — SECURITY INVOKER; returns the JWT `sub`. Tries Neon's
+--     auth.uid() first, then falls back to request.jwt.claims->>'sub' (which the
+--     authenticated role can always read), so it works even if the `authenticated`
+--     role was never granted access to the Neon `auth` schema.
+--
+-- STRUCTURE:
+--   public.<rpc>(...)            SECURITY INVOKER wrapper. Captures current_uid()
+--                                and calls the matching kc_private worker. These
+--                                are the only functions the client/Data API calls.
+--   kc_private._<rpc>(p_uid,...) SECURITY DEFINER worker. Original privileged
+--                                logic; trusts p_uid (passed by the wrapper from
+--                                the verified JWT).
+--   kc_private is NOT in the Data API's "Exposed schemas" (public only), so the
+--   workers — which trust their p_uid argument — can never be called directly.
+--   DO NOT add kc_private to the exposed schemas.
 
 create extension if not exists pgcrypto;  -- gen_random_uuid()
 
 -- Clean rebuild: drop app tables (and the old single-team objects) first.
 drop table if exists weeks, schedules, team_invites, team_members, teams, profiles cascade;
+drop schema if exists kc_private cascade;
+create schema kc_private;  -- internal workers + RLS helpers; never exposed by the Data API
 
 -- ===========================================================================
 -- Tables (RLS on; SELECT via policy, writes via the RPCs below)
@@ -26,9 +51,9 @@ drop table if exists weeks, schedules, team_invites, team_members, teams, profil
 
 -- App data per Neon Auth user. No role — every account can own and join teams.
 -- Email is denormalized here (set at init) so the client never needs
--- neon_auth.users_sync (which is updated asynchronously).
+-- neon_auth."user" (which is updated asynchronously).
 create table profiles (
-  user_id     text primary key,            -- = auth.user_id()
+  user_id     text primary key,            -- = the JWT `sub` (current_uid())
   email       text,
   created_at  timestamptz not null default now()
 );
@@ -89,19 +114,38 @@ create table team_invites (
 create index idx_invites_email on team_invites(email) where status = 'pending';
 
 -- ===========================================================================
--- RLS helpers — SECURITY DEFINER so they bypass RLS on the tables they read,
--- which keeps the membership policies from recursing into each other.
+-- current_uid() — the one place identity is read, in the invoker context.
 -- ===========================================================================
-create or replace function owned_team_ids()
+create or replace function current_uid()
+returns text language plpgsql stable security invoker set search_path = public as $$
+  declare v text; claims text;
+begin
+  -- Preferred: Neon's accessor (works when the authenticated role has auth-schema access).
+  begin v := auth.uid()::text; exception when others then v := null; end;
+  if v is not null and v <> '' then return v; end if;
+  -- Fallback: read the JWT `sub` straight from the PostgREST claims GUC. The
+  -- authenticated role can always read this; it needs no access to the auth schema.
+  claims := current_setting('request.jwt.claims', true);
+  if claims is null or claims = '' then return null; end if;
+  return nullif((claims::json) ->> 'sub', '');
+end $$;
+
+-- ===========================================================================
+-- RLS helpers — SECURITY DEFINER so they bypass RLS on the tables they read,
+-- which keeps the membership policies from recursing into each other. They take
+-- the uid as a parameter (current_uid() is evaluated in the policy's invoker
+-- context and passed in). Live in kc_private so they are never exposed.
+-- ===========================================================================
+create or replace function kc_private.owned_team_ids(p_uid text)
 returns setof uuid language sql security definer set search_path = public stable as $$
-  select id from teams where owner_id = auth.user_id();
+  select id from teams where owner_id = p_uid;
 $$;
 
-create or replace function my_team_ids()
+create or replace function kc_private.my_team_ids(p_uid text)
 returns setof uuid language sql security definer set search_path = public stable as $$
-  select id from teams where owner_id = auth.user_id()
+  select id from teams where owner_id = p_uid
   union
-  select team_id from team_members where user_id = auth.user_id();
+  select team_id from team_members where user_id = p_uid;
 $$;
 
 alter table profiles      enable row level security;
@@ -112,120 +156,112 @@ alter table weeks         enable row level security;
 alter table team_invites  enable row level security;
 
 create policy profiles_select on profiles for select to authenticated
-  using ( user_id = auth.user_id() );
+  using ( user_id = current_uid() );
 
 create policy teams_select on teams for select to authenticated
-  using ( id in (select my_team_ids()) );
+  using ( id in (select kc_private.my_team_ids(current_uid())) );
 
 create policy team_members_select on team_members for select to authenticated
-  using ( user_id = auth.user_id() or team_id in (select owned_team_ids()) );
+  using ( user_id = current_uid() or team_id in (select kc_private.owned_team_ids(current_uid())) );
 
 create policy schedules_select on schedules for select to authenticated
-  using ( assigned_user_id = auth.user_id() or team_id in (select owned_team_ids()) );
+  using ( assigned_user_id = current_uid() or team_id in (select kc_private.owned_team_ids(current_uid())) );
 
 -- A week is visible iff its schedule is (schedules RLS already restricts that).
 create policy weeks_select on weeks for select to authenticated
   using ( exists (select 1 from schedules s where s.id = weeks.schedule_id) );
 
 create policy invites_select on team_invites for select to authenticated
-  using ( team_id in (select owned_team_ids())
+  using ( team_id in (select kc_private.owned_team_ids(current_uid()))
           or ( status = 'pending'
-               and email = (select email from profiles where user_id = auth.user_id()) ) );
+               and email = (select email from profiles where user_id = current_uid()) ) );
 
 -- ===========================================================================
--- RPCs — all run SECURITY DEFINER and authorize via auth.user_id().
--- Exposed by the Data API as POST /rpc/<name> (JSON body uses these arg names).
+-- Workers (kc_private, SECURITY DEFINER) — original privileged logic; they trust
+-- p_uid, which the public wrappers derive from the verified JWT.
 -- ===========================================================================
 
--- Create your profile on first sign-in (idempotent). Also guarantees you own at
--- least one team — a personal default — so you always have a workspace.
-create or replace function init_profile(p_email text)
-returns profiles language plpgsql security definer set search_path = public as $$
-  declare r profiles;
+create or replace function kc_private._init_profile(p_uid text, p_email text)
+returns public.profiles language plpgsql security definer set search_path = public as $$
+  declare r public.profiles;
 begin
   insert into profiles (user_id, email)
-  values (auth.user_id(), lower(p_email))
+  values (p_uid, lower(p_email))
   on conflict (user_id) do update set email = excluded.email;
-  if not exists (select 1 from teams where owner_id = auth.user_id()) then
+  if not exists (select 1 from teams where owner_id = p_uid) then
     insert into teams (owner_id, name)
-    values (auth.user_id(), coalesce(nullif(split_part(lower(p_email), '@', 1), ''), 'My team'));
+    values (p_uid, coalesce(nullif(split_part(lower(p_email), '@', 1), ''), 'My team'));
   end if;
-  select * into r from profiles where user_id = auth.user_id();
+  select * into r from profiles where user_id = p_uid;
   return r;
 end $$;
 
--- Create a team you own.
-create or replace function create_team(p_name text)
-returns teams language plpgsql security definer set search_path = public as $$
-  declare tm teams;
+create or replace function kc_private._create_team(p_uid text, p_name text)
+returns public.teams language plpgsql security definer set search_path = public as $$
+  declare tm public.teams;
 begin
   insert into teams (owner_id, name)
-  values (auth.user_id(), coalesce(nullif(trim(p_name), ''), 'Team'))
+  values (p_uid, coalesce(nullif(trim(p_name), ''), 'Team'))
   returning * into tm;
   return tm;
 end $$;
 
--- Rename a team you own.
-create or replace function rename_team(p_team_id uuid, p_name text)
-returns teams language plpgsql security definer set search_path = public as $$
-  declare tm teams;
+create or replace function kc_private._rename_team(p_uid text, p_team_id uuid, p_name text)
+returns public.teams language plpgsql security definer set search_path = public as $$
+  declare tm public.teams;
 begin
   update teams set name = coalesce(nullif(trim(p_name), ''), name)
-    where id = p_team_id and owner_id = auth.user_id()
+    where id = p_team_id and owner_id = p_uid
     returning * into tm;
   if tm is null then raise exception 'not your team'; end if;
   return tm;
 end $$;
 
--- Delete a team you own (members, invites, schedules and weeks cascade away).
-create or replace function delete_team(p_team_id uuid)
+create or replace function kc_private._delete_team(p_uid text, p_team_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  delete from teams where id = p_team_id and owner_id = auth.user_id();
+  delete from teams where id = p_team_id and owner_id = p_uid;
 end $$;
 
--- Owner invites a person to one of their teams by email.
-create or replace function invite_to_team(p_team_id uuid, p_email text)
+create or replace function kc_private._invite_to_team(p_uid text, p_team_id uuid, p_email text)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  if not exists (select 1 from teams where id = p_team_id and owner_id = auth.user_id()) then
+  if not exists (select 1 from teams where id = p_team_id and owner_id = p_uid) then
     raise exception 'not your team';
   end if;
   insert into team_invites (team_id, email) values (p_team_id, lower(p_email))
   on conflict (team_id, email) do update set status = 'pending', created_at = now();
 end $$;
 
--- Invitee accepts -> joins that team.
-create or replace function accept_invite(p_invite_id uuid)
+create or replace function kc_private._accept_invite(p_uid text, p_invite_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
   declare inv team_invites; my_email text;
 begin
-  select email into my_email from profiles where user_id = auth.user_id();
+  select email into my_email from profiles where user_id = p_uid;
   select * into inv from team_invites
     where id = p_invite_id and email = my_email and status = 'pending';
   if inv is null then raise exception 'invite not found'; end if;
   insert into team_members (team_id, user_id, email)
-    values (inv.team_id, auth.user_id(), my_email)
+    values (inv.team_id, p_uid, my_email)
     on conflict (team_id, user_id) do update set email = excluded.email;
   update team_invites set status = 'accepted' where id = inv.id;
 end $$;
 
-create or replace function decline_invite(p_invite_id uuid)
+create or replace function kc_private._decline_invite(p_uid text, p_invite_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
   declare my_email text;
 begin
-  select email into my_email from profiles where user_id = auth.user_id();
+  select email into my_email from profiles where user_id = p_uid;
   update team_invites set status = 'declined'
     where id = p_invite_id and email = my_email and status = 'pending';
 end $$;
 
--- Create a schedule in a team you own; optionally assign it to a member.
-create or replace function create_schedule(p_team_id uuid, p_name text, p_color text default 'accent',
-                                           p_assigned_user_id text default null)
-returns schedules language plpgsql security definer set search_path = public as $$
-  declare s schedules; assignee text := null;
+create or replace function kc_private._create_schedule(p_uid text, p_team_id uuid, p_name text,
+                                                       p_color text, p_assigned_user_id text)
+returns public.schedules language plpgsql security definer set search_path = public as $$
+  declare s public.schedules; assignee text := null;
 begin
-  if not exists (select 1 from teams where id = p_team_id and owner_id = auth.user_id()) then
+  if not exists (select 1 from teams where id = p_team_id and owner_id = p_uid) then
     raise exception 'not your team';
   end if;
   if p_assigned_user_id is not null then
@@ -240,16 +276,14 @@ begin
   return s;
 end $$;
 
--- Rename / recolor / (re)assign a schedule in a team you own.
-create or replace function update_schedule(p_schedule_id uuid, p_name text default null,
-                                           p_color text default null,
-                                           p_assigned_user_id text default null,
-                                           p_clear_assignee boolean default false)
-returns schedules language plpgsql security definer set search_path = public as $$
-  declare s schedules; tid uuid;
+create or replace function kc_private._update_schedule(p_uid text, p_schedule_id uuid, p_name text,
+                                                       p_color text, p_assigned_user_id text,
+                                                       p_clear_assignee boolean)
+returns public.schedules language plpgsql security definer set search_path = public as $$
+  declare s public.schedules; tid uuid;
 begin
   select team_id into tid from schedules where id = p_schedule_id;
-  if tid is null or not exists (select 1 from teams where id = tid and owner_id = auth.user_id()) then
+  if tid is null or not exists (select 1 from teams where id = tid and owner_id = p_uid) then
     raise exception 'not your schedule';
   end if;
   if p_clear_assignee then
@@ -266,13 +300,12 @@ begin
   return s;
 end $$;
 
--- Team owner writes the plan; each day's actualHours is preserved.
-create or replace function save_plan(p_schedule_id uuid, p_week_start date, p_days jsonb)
+create or replace function kc_private._save_plan(p_uid text, p_schedule_id uuid, p_week_start date, p_days jsonb)
 returns void language plpgsql security definer set search_path = public as $$
   declare existing jsonb; merged jsonb; has_assignee boolean; tid uuid; aid text;
 begin
   select team_id, assigned_user_id into tid, aid from schedules where id = p_schedule_id;
-  if tid is null or not exists (select 1 from teams where id = tid and owner_id = auth.user_id()) then
+  if tid is null or not exists (select 1 from teams where id = tid and owner_id = p_uid) then
     raise exception 'not your schedule';
   end if;
   has_assignee := aid is not null;
@@ -293,12 +326,11 @@ begin
     on conflict (schedule_id, week_start) do update set days = excluded.days, updated_at = now();
 end $$;
 
--- Assigned member writes only actualHours; the plan is preserved.
-create or replace function save_actuals(p_schedule_id uuid, p_week_start date, p_actuals jsonb)
+create or replace function kc_private._save_actuals(p_uid text, p_schedule_id uuid, p_week_start date, p_actuals jsonb)
 returns void language plpgsql security definer set search_path = public as $$
   declare existing jsonb; merged jsonb;
 begin
-  if not exists (select 1 from schedules where id = p_schedule_id and assigned_user_id = auth.user_id()) then
+  if not exists (select 1 from schedules where id = p_schedule_id and assigned_user_id = p_uid) then
     raise exception 'not assigned to you';
   end if;
   select days into existing from weeks where schedule_id = p_schedule_id and week_start = p_week_start;
@@ -313,23 +345,20 @@ begin
     where schedule_id = p_schedule_id and week_start = p_week_start;
 end $$;
 
--- Delete a schedule in a team you own (its weeks cascade away via the FK).
-create or replace function delete_schedule(p_schedule_id uuid)
+create or replace function kc_private._delete_schedule(p_uid text, p_schedule_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
   declare tid uuid;
 begin
   select team_id into tid from schedules where id = p_schedule_id;
-  if tid is not null and exists (select 1 from teams where id = tid and owner_id = auth.user_id()) then
+  if tid is not null and exists (select 1 from teams where id = tid and owner_id = p_uid) then
     delete from schedules where id = p_schedule_id;
   end if;
 end $$;
 
--- Owner removes a member from one of their teams: unassign that team's schedules
--- held by the member, then drop the membership.
-create or replace function remove_member(p_team_id uuid, p_user_id text)
+create or replace function kc_private._remove_member(p_uid text, p_team_id uuid, p_user_id text)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  if not exists (select 1 from teams where id = p_team_id and owner_id = auth.user_id()) then
+  if not exists (select 1 from teams where id = p_team_id and owner_id = p_uid) then
     raise exception 'not your team';
   end if;
   update schedules set assigned_user_id = null
@@ -337,81 +366,140 @@ begin
   delete from team_members where team_id = p_team_id and user_id = p_user_id;
 end $$;
 
--- Member leaves a team: unassign any of that team's schedules assigned to them,
--- then drop their own membership.
-create or replace function leave_team(p_team_id uuid)
+create or replace function kc_private._leave_team(p_uid text, p_team_id uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   update schedules set assigned_user_id = null
-    where team_id = p_team_id and assigned_user_id = auth.user_id();
-  delete from team_members where team_id = p_team_id and user_id = auth.user_id();
+    where team_id = p_team_id and assigned_user_id = p_uid;
+  delete from team_members where team_id = p_team_id and user_id = p_uid;
 end $$;
 
--- Invite links: an owner fetches / rotates a team's secret token to build a
--- shareable link; anyone signed in can join a team by its token (idempotent).
--- (The app-level invite link is client-only — it just opens signup.)
-create or replace function team_invite_link(p_team_id uuid)
+create or replace function kc_private._team_invite_link(p_uid text, p_team_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
   declare tok uuid;
 begin
-  select join_token into tok from teams where id = p_team_id and owner_id = auth.user_id();
+  select join_token into tok from teams where id = p_team_id and owner_id = p_uid;
   if tok is null then raise exception 'not your team'; end if;
   return tok::text;
 end $$;
 
-create or replace function regenerate_team_link(p_team_id uuid)
+create or replace function kc_private._regenerate_team_link(p_uid text, p_team_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
   declare tok uuid;
 begin
   update teams set join_token = gen_random_uuid()
-    where id = p_team_id and owner_id = auth.user_id()
+    where id = p_team_id and owner_id = p_uid
     returning join_token into tok;
   if tok is null then raise exception 'not your team'; end if;
   return tok::text;
 end $$;
 
-create or replace function join_by_token(p_token uuid)
+create or replace function kc_private._join_by_token(p_uid text, p_token uuid)
 returns json language plpgsql security definer set search_path = public as $$
   declare tm teams; my_email text;
 begin
   select * into tm from teams where join_token = p_token;
   if tm is null then raise exception 'invalid or expired invite link'; end if;
-  select email into my_email from profiles where user_id = auth.user_id();
-  if tm.owner_id <> auth.user_id() then
+  select email into my_email from profiles where user_id = p_uid;
+  if tm.owner_id <> p_uid then
     insert into team_members (team_id, user_id, email)
-    values (tm.id, auth.user_id(), my_email)
+    values (tm.id, p_uid, my_email)
     on conflict (team_id, user_id) do update set email = excluded.email;
   end if;
   return json_build_object('id', tm.id, 'name', tm.name, 'owner_id', tm.owner_id);
 end $$;
 
 -- ===========================================================================
+-- Public wrappers (SECURITY INVOKER) — the only RPCs the Data API exposes. Each
+-- reads current_uid() in the authenticated context and hands it to its worker.
+-- Signatures match what the client calls (POST /rpc/<name>, these arg names).
+-- ===========================================================================
+
+create or replace function init_profile(p_email text)
+returns public.profiles language plpgsql security invoker set search_path = public as $$
+begin return kc_private._init_profile(current_uid(), p_email); end $$;
+
+create or replace function create_team(p_name text)
+returns public.teams language plpgsql security invoker set search_path = public as $$
+begin return kc_private._create_team(current_uid(), p_name); end $$;
+
+create or replace function rename_team(p_team_id uuid, p_name text)
+returns public.teams language plpgsql security invoker set search_path = public as $$
+begin return kc_private._rename_team(current_uid(), p_team_id, p_name); end $$;
+
+create or replace function delete_team(p_team_id uuid)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._delete_team(current_uid(), p_team_id); end $$;
+
+create or replace function invite_to_team(p_team_id uuid, p_email text)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._invite_to_team(current_uid(), p_team_id, p_email); end $$;
+
+create or replace function accept_invite(p_invite_id uuid)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._accept_invite(current_uid(), p_invite_id); end $$;
+
+create or replace function decline_invite(p_invite_id uuid)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._decline_invite(current_uid(), p_invite_id); end $$;
+
+create or replace function create_schedule(p_team_id uuid, p_name text, p_color text default 'accent',
+                                           p_assigned_user_id text default null)
+returns public.schedules language plpgsql security invoker set search_path = public as $$
+begin return kc_private._create_schedule(current_uid(), p_team_id, p_name, p_color, p_assigned_user_id); end $$;
+
+create or replace function update_schedule(p_schedule_id uuid, p_name text default null,
+                                           p_color text default null,
+                                           p_assigned_user_id text default null,
+                                           p_clear_assignee boolean default false)
+returns public.schedules language plpgsql security invoker set search_path = public as $$
+begin return kc_private._update_schedule(current_uid(), p_schedule_id, p_name, p_color,
+                                         p_assigned_user_id, p_clear_assignee); end $$;
+
+create or replace function save_plan(p_schedule_id uuid, p_week_start date, p_days jsonb)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._save_plan(current_uid(), p_schedule_id, p_week_start, p_days); end $$;
+
+create or replace function save_actuals(p_schedule_id uuid, p_week_start date, p_actuals jsonb)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._save_actuals(current_uid(), p_schedule_id, p_week_start, p_actuals); end $$;
+
+create or replace function delete_schedule(p_schedule_id uuid)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._delete_schedule(current_uid(), p_schedule_id); end $$;
+
+create or replace function remove_member(p_team_id uuid, p_user_id text)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._remove_member(current_uid(), p_team_id, p_user_id); end $$;
+
+create or replace function leave_team(p_team_id uuid)
+returns void language plpgsql security invoker set search_path = public as $$
+begin perform kc_private._leave_team(current_uid(), p_team_id); end $$;
+
+create or replace function team_invite_link(p_team_id uuid)
+returns text language plpgsql security invoker set search_path = public as $$
+begin return kc_private._team_invite_link(current_uid(), p_team_id); end $$;
+
+create or replace function regenerate_team_link(p_team_id uuid)
+returns text language plpgsql security invoker set search_path = public as $$
+begin return kc_private._regenerate_team_link(current_uid(), p_team_id); end $$;
+
+create or replace function join_by_token(p_token uuid)
+returns json language plpgsql security invoker set search_path = public as $$
+begin return kc_private._join_by_token(current_uid(), p_token); end $$;
+
+-- ===========================================================================
 -- Grants for the Data API roles. Reads = SELECT (RLS-filtered); every write goes
--- through an RPC. The RLS-helper functions are EXECUTEd inside the policies.
+-- through a public wrapper. kc_private is granted to authenticated so the
+-- wrappers/policies can call into it, but it is NEVER exposed by the Data API
+-- (exposed schemas = public only), so its workers can't be called directly.
 -- ===========================================================================
 grant usage on schema public to authenticated;
+grant usage on schema kc_private to authenticated;
 grant select on profiles, team_members, schedules, weeks, team_invites to authenticated;
 -- teams: every column except join_token (the invite secret; owners fetch it via RPC)
 grant select (id, owner_id, name, created_at) on teams to authenticated;
-grant execute on function owned_team_ids(), my_team_ids() to authenticated;
-grant execute on function
-  init_profile(text),
-  create_team(text),
-  rename_team(uuid, text),
-  delete_team(uuid),
-  invite_to_team(uuid, text),
-  accept_invite(uuid),
-  decline_invite(uuid),
-  create_schedule(uuid, text, text, text),
-  update_schedule(uuid, text, text, text, boolean),
-  save_plan(uuid, date, jsonb),
-  save_actuals(uuid, date, jsonb),
-  delete_schedule(uuid),
-  remove_member(uuid, text),
-  leave_team(uuid),
-  team_invite_link(uuid),
-  regenerate_team_link(uuid),
-  join_by_token(uuid)
-to authenticated;
+grant execute on all functions in schema public to authenticated;
+grant execute on all functions in schema kc_private to authenticated;
 
 notify pgrst, 'reload schema';
