@@ -2291,7 +2291,10 @@ async function doAuth(action) {
 }
 
 async function restoreSession() {
-  if (!CLOUD.enabled || openedFromShare || !sessionToken()) { reflectAuth(); return; }
+  // The durable login is the HttpOnly session cookie (Neon sends no bearer token),
+  // so always try /get-session — it authenticates via the cookie (credentials:'include').
+  // Gating on a localStorage token here meant the cookie was never checked on reload.
+  if (!CLOUD.enabled || openedFromShare) { reflectAuth(); return; }
   try {
     const s = await authFetch('/get-session', { method: 'GET' });
     const u = s && (s.user || (s.session && s.session.user));
