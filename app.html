@@ -302,13 +302,13 @@
   body.view-mode .day.master-day { cursor: default; }
   .master-day .master-row {
     display: grid;
-    grid-template-columns: 70px 1fr auto;
+    grid-template-columns: 88px 1fr auto;
     gap: 0.4rem;
     align-items: center;
     margin: 0.2rem 0;
     font-size: 0.85rem;
   }
-  .master-row-label { font-weight: 600; }
+  .master-row-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .master-row-times { font-variant-numeric: tabular-nums; font-size: 0.78rem; }
   .master-track { height: 10px; }
 
