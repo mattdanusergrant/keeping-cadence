@@ -846,12 +846,13 @@ try {
 // public — security is enforced by Neon Auth + Postgres RLS — so they live here.
 const CLOUD = {
   enabled: true,
-  // Auth goes through a first-party Cloudflare Worker proxy (auth.keepingcadence.com),
-  // not the neon.tech endpoint directly, so the session cookie is first-party to
-  // keepingcadence.com and survives Safari ITP / Firefox ETP / iOS. The Worker
-  // forwards to ep-tiny-sun-a6wesvb9.neonauth.us-west-2.aws.neon.tech. (Data API
-  // below stays on neon.tech — it uses the bearer JWT, no cookie.)
-  authBase: 'https://auth.keepingcadence.com/neondb/auth',
+  // Auth is proxied SAME-ORIGIN: app.keepingcadence.com/__neonauth -> (vercel.json
+  // rewrite) -> the Cloudflare Worker (auth.keepingcadence.com) -> Neon Auth. Serving
+  // it under the app's own origin makes the session cookie same-origin / first-party,
+  // which iOS WebKit (Safari + every iOS browser) keeps across refreshes — a cross-site
+  // or even same-site-subdomain cookie does not survive ITP there. (Data API below
+  // stays on neon.tech — it uses the bearer JWT, no cookie.)
+  authBase: 'https://app.keepingcadence.com/__neonauth',
   dataApi:  'https://ep-tiny-sun-a6wesvb9.apirest.us-west-2.aws.neon.tech/neondb/rest/v1',
 };
 const SESSION_KEY = 'keepingcadence-session';
