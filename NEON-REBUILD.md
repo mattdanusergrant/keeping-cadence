@@ -1,61 +1,56 @@
-# Keeping Cadence — Neon-native rebuild
+# Keeping Cadence — Neon-native rebuild (history + gotchas)
 
-Decision (2026-06-18): rebuild KC to use **maximum Neon** (Databricks ecosystem) while
-staying on the free tier. Browser -> Neon Data API (PostgREST) with Neon Auth; **no custom
-server**. Replaces the scrypt+JWT + Vercel serverless design.
+Decision (2026-06-18): rebuild KC to **maximum Neon** on the free tier — browser →
+Neon Data API (PostgREST) + Neon Auth, **no custom server** — replacing the
+scrypt+JWT + Vercel-serverless design. Shipped and **verified live 2026-06-22**.
+See **BACKEND.md** for the current architecture; this file keeps the history and
+the two non-obvious things that cost the most debugging time.
 
-## Architecture
-- **Login -> Neon Auth** (email/password + Google), called over REST from the single-file
-  client (`POST {NEON_AUTH_URL}/auth/sign-in/email` -> JWT `access_token`). No build step.
-- **Data -> Neon Data API + RLS** — the browser reads tables directly with the JWT.
-- **Roles/teams + plan-vs-actuals -> Postgres RPC functions** (`/rpc/*`), SECURITY DEFINER,
-  authorized via `auth.user_id()`.
-- **No-account sharing -> the existing client-side hash link** (`#s=`); the server slug
-  share is dropped.
-- **Net:** browser -> Neon only. (Stripe, if added later, needs one tiny function — Neon
-  cannot receive webhooks. Deferred.)
+## Status — DONE / live
+- **DB layer** (`db/schema.sql`): `profiles`, `teams`, `team_members`, `schedules`,
+  `weeks`, `team_invites` + RLS + `current_uid()` + public invoker wrappers + the
+  `kc_private` SECURITY DEFINER workers + grants. Applied + verified on live Neon.
+- **Client** (`app.html`): Neon Auth over REST (same-origin proxy), `/token` JWT
+  with refresh-on-401, Data API reads, RPC writes; localStorage stays the offline
+  cache. Many-to-many teams, invite links, plan-vs-actuals split.
+- **Auth proxy** (`infra/neon-auth-proxy.js` + `vercel.json`): same-origin so the
+  session cookie sticks on every browser.
+- **Decommission** of the old serverless build: complete.
 
-## Status
-- [x] **DB layer** — `db/schema.sql`: profiles, schedules, weeks, team_invites + RLS +
-      RPCs (init_profile, invite_to_team, accept_invite, decline_invite, create_schedule,
-      update_schedule, save_plan, save_actuals). **UNVERIFIED until run on live Neon.**
-- [x] **Client rewrite** (`app.html`, formerly `index.html`) — done in two phases:
-      - **Phase 1 (solo):** Account modal -> Neon Auth REST (sign-up/in; bearer session
-        token; `/token` JWT with refresh-on-401); `cloudPull` -> Data API GETs; `cloudPush`
-        -> RPC POSTs (`create_schedule`/`update_schedule`/`save_plan`); `CLOUD` config set.
-      - **Phase 2 (teams):** role choice at signup -> `init_profile(p_email, p_role)`;
-        profile (role/userId/managerId) loaded on auth + restore; Team modal — manager
-        invites (`invite_to_team`), roster, per-schedule assignment (`update_schedule`
-        assign/clear); member sees/accepts/declines invites (`accept_invite`/`decline_invite`);
-        plan-vs-actuals **write split** — owner edits the plan (`save_plan`), assigned member
-        edits only logged hours (`save_actuals`), enforced in the render + `flushSaves`.
-- [ ] **Verification pass** on live Neon (RLS + each RPC; confirm `auth.user_id()` + grants).
-      Phase 2 logic is unit-tested against the real script with a DOM shim + mocked Neon,
-      but the RPC/RLS round-trips are still UNVERIFIED on live Neon (sandbox egress blocked).
-- [x] **Decommission** old build: `api/*.js`, `vercel.json`, `package.json` removed;
-      `.env.example` (server secrets) removed; `BACKEND.md` + `README.md` rewritten to the
-      Neon-direct, server-less architecture.
+## Gotcha 1 — identity in SECURITY DEFINER returns NULL
+The original schema called `auth.user_id()` inside `SECURITY DEFINER` RPCs and RLS
+helpers. On this Neon project the JWT identity **only resolves while running as the
+`authenticated` role** (RLS policies, `SECURITY INVOKER` functions). Inside a
+`SECURITY DEFINER` function — running as the table owner — `auth.uid()` **and** the
+`request.jwt.claims` GUC are both empty, so every write (and the RLS reads) saw a
+NULL user and a fresh signup couldn't even create a profile.
 
-## What I need from you
-1. On the KC Neon project: **enable Neon Auth + the Data API** (set the Neon Auth app/
-   display name to "Keeping Cadence").
-2. Send me the **Data API base URL** and the **Neon Auth base URL** (from the project's
-   Data API / Auth pages).
-3. Apply `db/schema.sql` to the project (SQL Editor) when ready — or I can walk you through it.
+**Fix:** read the id once in the invoker context via **`current_uid()`**
+(`auth.uid()` with a `request.jwt.claims->>'sub'` fallback — needs no grant on the
+`auth` schema), in thin `SECURITY INVOKER` wrappers, and pass it to the original
+logic now in `SECURITY DEFINER` workers in the **unexposed `kc_private`** schema.
+(`auth.uid()` is also the correct Neon accessor — the docs' `auth.user_id()` and a
+manual `GRANT … ON SCHEMA auth` both proved insufficient/blocked here.)
 
-## Open considerations
-- **Unverified SQL:** RLS + RPCs need a live pass. `auth.user_id()` name + grants are from
-  the docs but not yet run.
-- **Token refresh:** Neon Auth access tokens expire; the client needs a refresh path (or a
-  `credentials: 'include'` session). To design in the client step.
-- **users_sync is async** (<1s): sidestepped by storing email in `profiles` at init.
-- **Email sender:** set to "Keeping Cadence" in Neon Auth so verification/reset emails are
-  not from "Many Doors".
-- **Google sign-in / email verification:** optional toggles in Neon Auth; decide for testers.
+## Gotcha 2 — the session cookie was cross-site (logout on refresh)
+Neon Auth's HttpOnly session cookie is set by the `…neon.tech` host → third-party
+to `app.keepingcadence.com`, so Safari ITP / Firefox ETP / iOS dropped it on
+refresh. A same-site **subdomain** (`auth.keepingcadence.com`), with `SameSite=Lax`
+and `Partitioned` stripped, *still* failed on iOS (WebKit won't persist a cookie
+for a host never visited top-level).
 
-## RPC signatures (POST /rpc/<name>, JSON body uses these arg names)
-- `init_profile(p_email, p_role)`
-- `invite_to_team(p_email)` · `accept_invite(p_invite_id)` · `decline_invite(p_invite_id)`
-- `create_schedule(p_name, p_color, p_assigned_user_id)`
-- `update_schedule(p_schedule_id, p_name, p_color, p_assigned_user_id, p_clear_assignee)`
-- `save_plan(p_schedule_id, p_week_start, p_days)` · `save_actuals(p_schedule_id, p_week_start, p_actuals)`
+**Fix:** proxy auth **same-origin** —
+`app.keepingcadence.com/__neonauth` → (vercel.json rewrite) → Cloudflare Worker
+(`auth.keepingcadence.com`) → Neon — so the cookie is set on the app's own origin.
+The Worker also strips `x-forwarded-host` (Vercel adds it; Neon → `INVALID_HOSTNAME`).
+**And** the client bug that masked it: `restoreSession()` only ran when a
+localStorage token existed, but Neon returns no `set-auth-token`, so it *never*
+ran — the cookie was never checked on reload. Now it always calls `/get-session`
+(cookie-authenticated).
+
+## Other notes
+- **users_sync is async** (<1s): sidestepped by storing email in `profiles` at init
+  (Better Auth's table is `neon_auth."user"`, not `users_sync`).
+- **Email verification:** off = instant signup; turn on before a wider launch.
+- **Open signups:** Neon Auth has no restricted-signup yet — anyone with the link
+  can create an account (fine for a small private test).

@@ -4,26 +4,71 @@ The front-end (`app.html`) runs fully on its own. The cloud layer adds
 **accounts, cross-device sync, and many-to-many teams** (any account can create
 and join many teams, invite people, assign schedules, and split the plan from the
 actual hours). It is **"max-Neon"**: the browser talks directly to Neon, with
-**no custom server**.
+**no custom server** — the only edge piece is a tiny stateless Cloudflare Worker
+that proxies auth so the session cookie is first-party (see **Auth proxy** below).
 
 ```
 Browser (static, on Vercel)
-  ├── Neon Auth  (Better Auth)        login → bearer session token → short-lived JWT
-  ├── Neon Data API (PostgREST)       reads: GET /schedules, /weeks, /profiles, /team_invites  (RLS-filtered)
-  └── Postgres RPCs  (POST /rpc/*)     writes: SECURITY DEFINER functions, authorized via auth.user_id()
+  ├── Neon Auth (Better Auth)   login → HttpOnly session cookie, proxied SAME-ORIGIN:
+  │                             app.keepingcadence.com/__neonauth → CF Worker → Neon
+  │                             → /token exchanges the cookie for a short-lived Data API JWT
+  ├── Neon Data API (PostgREST) reads: GET /schedules,/weeks,/profiles,/teams,/team_invites (RLS-filtered, bearer JWT)
+  └── Postgres RPCs (POST /rpc/*) writes: SECURITY INVOKER wrappers → SECURITY DEFINER workers
 ```
 
-- The browser holds a **session token** (localStorage) from Neon Auth and
-  exchanges it for a short-lived **Data API JWT** (`/token`, refreshed on 401).
+- **Login is an HttpOnly cookie.** Neon Auth returns no bearer token, so the
+  durable session is the cookie; the client calls `/get-session` (cookie) on load
+  to restore, and `/token` to mint a short-lived Data API JWT (refreshed on 401).
 - **Reads** go straight to tables through the Data API; **row-level security**
   decides what each user can see.
-- **Writes** never touch tables directly — they go through a fixed set of
-  **`SECURITY DEFINER` RPCs** that enforce the roles/teams rules and the
-  plan-vs-actuals split.
+- **Writes** never touch tables directly — they go through RPCs (details below)
+  that enforce the teams rules and the plan-vs-actuals split.
 
 > This replaced an earlier design (a Vercel `/api` serverless layer with
-> scrypt+JWT auth). Those files (`api/*.js`, `vercel.json`, `package.json`) have
-> been removed — there is no server to deploy anymore.
+> scrypt+JWT auth). Those files (`api/*.js`, `package.json`) were removed.
+
+## Identity — how an RPC/policy learns "who is signed in"
+
+This is the non-obvious part. On this Neon project the JWT identity **only
+resolves while running as the `authenticated` role** — i.e. in RLS policies and
+`SECURITY INVOKER` functions. Inside a `SECURITY DEFINER` function (which runs as
+the table owner) `auth.uid()` and the `request.jwt.claims` GUC are both
+unavailable, so reading identity there returns NULL.
+
+So the schema reads the user id **once, in the invoker context**, and threads it
+down:
+
+- **`public.current_uid()`** — `SECURITY INVOKER`; returns the JWT `sub`. Tries
+  `auth.uid()`, falls back to `request.jwt.claims->>'sub'` (which the
+  `authenticated` role can always read), so it works even if the project never
+  granted `authenticated` access to the Neon `auth` schema.
+- **RPCs** are thin `public` `SECURITY INVOKER` wrappers that capture
+  `current_uid()` and call a matching `SECURITY DEFINER` worker in the **unexposed
+  `kc_private` schema** (Data API exposes `public` only). Same RPC names/args as
+  before — the client is unchanged. Because the workers trust their `p_uid`
+  argument, they must never be exposed: **do not add `kc_private` to the Data
+  API's exposed schemas.**
+- **RLS policies** use `current_uid()` directly and call `kc_private`
+  helpers (`owned_team_ids`/`my_team_ids`) with it as a parameter.
+
+## Auth proxy — why the session cookie is same-origin
+
+Neon Auth's session is an HttpOnly cookie set by the `…neon.tech` endpoint. Hit
+directly, it's **cross-site** to `app.keepingcadence.com`, so Safari ITP / Firefox
+ETP / iOS drop it on refresh (a same-site *subdomain* cookie wasn't enough — iOS
+won't persist a cookie for a host the user never visited top-level). Fix: proxy
+auth through the app's **own origin**:
+
+```
+app.keepingcadence.com/__neonauth/*
+  → (vercel.json rewrite) → https://auth.keepingcadence.com/neondb/auth/*
+  → (Cloudflare Worker, infra/neon-auth-proxy.js) → Neon Auth
+```
+
+The cookie lands on `app.keepingcadence.com` itself, which every browser keeps.
+The Worker also strips `x-forwarded-host` (Vercel adds it; Neon rejects it →
+`INVALID_HOSTNAME`) and rewrites the cookie to `SameSite=Lax` (no `Partitioned`).
+The Data API stays on `neon.tech` — it uses the bearer JWT, no cookie.
 
 ## Accounts & teams
 
@@ -35,95 +80,84 @@ created them) and **join** teams (by invite) — many of each, at the same time.
   the **plan** and assigns each schedule to a member; members see the schedules
   assigned to them and fill in **actual hours only**.
 - "Role" is therefore **per-team and derived**: you are the *owner* of a team you
-  created (author plans, invite, assign) and a *member* of a team you joined (log
-  hours). The client tracks an **active team**; schedules belong to it, and a
-  toolbar selector switches between teams.
+  created and a *member* of a team you joined. The client tracks an **active
+  team**; schedules belong to it, and a toolbar selector switches between teams.
 
 The plan-vs-actuals split is enforced in Postgres: `save_plan` (team owner)
 preserves a member's `actualHours`; `save_actuals` (assigned member) preserves
-the plan. The client mirrors it (a member sees the plan read-only and edits only
-hours; an owner sees logged hours read-only beside the plan). Anonymous,
-account-free sharing still uses the client-side `#s=` hash link.
+the plan. The client mirrors it. Anonymous, account-free sharing still uses the
+client-side `#s=` hash link.
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `db/schema.sql` | The whole backend: `profiles`, `teams`, `team_members`, `schedules`, `weeks`, `team_invites` + RLS policies + the RPCs + Data API grants. A clean rebuild — drops the app tables first, then recreates them. Run once against the Neon project. |
-| `app.html` | Front-end **and** the cloud client (the `CLOUD` block + the auth / Data API / RPC calls). |
-| `NEON-REBUILD.md` | Architecture decision + build status (Phase 1 solo, Phase 2 teams). |
+| `db/schema.sql` | The whole backend: tables (`profiles`, `teams`, `team_members`, `schedules`, `weeks`, `team_invites`) + RLS + `current_uid()` + the public invoker wrappers + the `kc_private` SECURITY DEFINER workers + Data API grants. A clean rebuild — drops the app tables first. Run once against the Neon project. |
+| `app.html` | Front-end **and** the cloud client (the `CLOUD` block + auth / Data API / RPC calls). |
+| `infra/neon-auth-proxy.js` | The Cloudflare Worker for the same-origin auth proxy (source of truth; deployed via the Cloudflare dashboard). |
+| `vercel.json` | Host routing (app vs landing) + the `/__neonauth` → Worker rewrite. |
+| `NEON-REBUILD.md` | Architecture history + the two identity/cookie gotchas, for context. |
 
 ## Setup
 
 ### 1. Neon project
 1. Create a **dedicated** Neon project for Keeping Cadence at <https://neon.tech>.
-2. Enable **Neon Auth** and the **Data API** on it. Set the Neon Auth app /
-   display name (and email sender) to **"Keeping Cadence"** so verification /
-   reset emails are branded. Email/password is required; Google sign-in and email
-   verification are optional toggles.
-3. From the project's **Data API** and **Auth** pages, copy the two base URLs
-   (they look like
-   `https://<endpoint>.neonauth.<region>.aws.neon.tech/<db>/auth` and
-   `https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1`).
-4. Apply the schema — paste `db/schema.sql` into the Neon **SQL Editor**, or:
-   ```bash
-   psql "postgres://…/<db>?sslmode=require" -f db/schema.sql
-   ```
+2. Enable **Neon Auth** and the **Data API** (check **"Use Neon Auth"** so the
+   `authenticated` role is wired). Set the Neon Auth app/display name + email
+   sender to **"Keeping Cadence"**. Email/password required; email verification is
+   an optional toggle (off = instant signup).
+3. Apply the schema — paste `db/schema.sql` into the Neon **SQL Editor** (then hit
+   **Refresh schema cache** on the Data API page so the RPCs are exposed).
 
-### 2. Point the client at Neon
+### 2. Auth proxy (first-party cookie)
+1. Deploy `infra/neon-auth-proxy.js` as a Cloudflare Worker; point `UPSTREAM` at
+   the project's Neon Auth host.
+2. Give the Worker the custom domain **`auth.keepingcadence.com`** (its zone must
+   be in the same Cloudflare account as the Worker).
+3. `vercel.json` already rewrites `/__neonauth/:path*` → that Worker.
+
+### 3. Point the client at Neon
 In `app.html`, the `CLOUD` block near the top of the script:
 ```js
 const CLOUD = {
   enabled: true,
-  authBase: 'https://<endpoint>.neonauth.<region>.aws.neon.tech/<db>/auth',
-  dataApi:  'https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1',
+  authBase: 'https://app.keepingcadence.com/__neonauth',                       // same-origin proxy
+  dataApi:  'https://<endpoint>.apirest.<region>.aws.neon.tech/<db>/rest/v1',   // Data API, direct
 };
 ```
-These URLs are public — security is enforced by Neon Auth + RLS — so they live in
-the file. Set `enabled: false` to ship the app fully local (no Account button).
+The Data API URL is public — security is enforced by Neon Auth + RLS. Set
+`enabled: false` to ship the app fully local (no Account button).
 
-### 3. Deploy the static site (Vercel)
-Import the repo at <https://vercel.com/new> and deploy. No environment variables
-or build step.
-
-**Domains & routing (one project, two surfaces).** All three hostnames are added
-to the same Vercel project (no redirects between them); `vercel.json` routes by
-host:
-- `app.keepingcadence.com` → the app (`app.html`)
-- `keepingcadence.com` + `www.keepingcadence.com` → the marketing page (`landing.html`)
-
-The app is **not** named `index.html` on purpose: Vercel serves a static file at
-`/` *before* it evaluates `vercel.json` rewrites, so an `index.html` at the root
-would be returned on every host and the host rules could never run. With no file
-at `/`, the rewrites decide: marketing hosts get `landing.html`, and the final
-catch-all (`/(.*)` → `/app.html`) serves the app for `app.` and every other host
-(previews, `*.vercel.app`) — so a host-match miss can only fail to show the
-landing, never break the app.
+### 4. Deploy the static site (Vercel)
+Import the repo and deploy. No env vars or build step. `vercel.json` routes by
+host: `app.keepingcadence.com` → the app (`app.html`); `keepingcadence.com` +
+`www` → the marketing page (`landing.html`). The app is **not** `index.html` on
+purpose so Vercel's host rewrites can run (a static `/` would be served before
+them). Note: pushes don't auto-promote — promote the new deploy to Production.
 
 ## RPC reference (POST `/rpc/<name>`, JSON body uses these arg names)
+Client-facing signatures (the public wrappers; identity comes from the session, not an argument):
+
 | Function | Who | Effect |
 |---|---|---|
-| `init_profile(p_email)` | any signed-in | Create your profile on first sign-in (idempotent); guarantees you own a personal default team. |
+| `init_profile(p_email)` | any signed-in | Create your profile on first sign-in (idempotent); guarantees a personal default team. |
 | `create_team(p_name)` · `rename_team(p_team_id, p_name)` · `delete_team(p_team_id)` | any · owner | Create a team you own; rename / delete one you own (delete cascades). |
-| `invite_to_team(p_team_id, p_email)` | team owner | Invite someone to that team by email. |
-| `accept_invite(p_invite_id)` / `decline_invite(p_invite_id)` | invitee | Join (adds a `team_members` row) / dismiss a pending invite. |
-| `create_schedule(p_team_id, p_name, p_color?, p_assigned_user_id?)` | team owner | New schedule in that team. |
-| `update_schedule(p_schedule_id, p_name?, p_color?, p_assigned_user_id?, p_clear_assignee?)` | team owner | Rename / recolor / (re)assign. |
-| `delete_schedule(p_schedule_id)` | team owner | Delete (its weeks cascade). |
-| `save_plan(p_schedule_id, p_week_start, p_days)` | team owner | Write the week's plan; preserves a member's `actualHours`. |
+| `invite_to_team(p_team_id, p_email)` | owner | Invite by email. |
+| `accept_invite(p_invite_id)` / `decline_invite(p_invite_id)` | invitee | Join / dismiss a pending invite. |
+| `team_invite_link(p_team_id)` / `regenerate_team_link(p_team_id)` / `join_by_token(p_token)` | owner / owner / any signed-in | Fetch / rotate a team's invite-link token; join a team by token. |
+| `create_schedule(p_team_id, p_name, p_color?, p_assigned_user_id?)` | owner | New schedule in that team. |
+| `update_schedule(p_schedule_id, p_name?, p_color?, p_assigned_user_id?, p_clear_assignee?)` | owner | Rename / recolor / (re)assign. |
+| `delete_schedule(p_schedule_id)` | owner | Delete (its weeks cascade). |
+| `save_plan(p_schedule_id, p_week_start, p_days)` | owner | Write the week's plan; preserves a member's `actualHours`. |
 | `save_actuals(p_schedule_id, p_week_start, p_actuals)` | assigned member | Write only the week's actual hours; preserves the plan. |
-| `remove_member(p_team_id, p_user_id)` / `leave_team(p_team_id)` | owner / member | Remove a member from your team / leave a team you joined. |
+| `remove_member(p_team_id, p_user_id)` / `leave_team(p_team_id)` | owner / member | Remove a member / leave a team. |
 
-## Verify (against live Neon)
-The schema + client logic are unit-tested, but do a first live pass after
-provisioning:
-- [ ] Sign up → `init_profile` returns your row and you get a personal default team; reload keeps you signed in.
-- [ ] Create a schedule, edit a day, reload on another device → it syncs.
-- [ ] Create a second team and switch between them (toolbar selector) → each shows its own schedules.
-- [ ] Owner invites an email → that account sees the invite, accepts, joins the team, and appears in the roster.
-- [ ] Owner assigns a schedule → the member sees it, can set actual hours but **not** the plan; the owner sees the logged hours.
-- [ ] One account is owner of team A and member of team B at the same time.
-- [ ] RLS: you cannot read schedules of a team you neither own nor were assigned in; each RPC rejects non-owners / non-assignees.
+## Verified live (2026-06-22)
+End-to-end against live Neon: signup → `init_profile` → personal default team;
+create schedule → save → read-back; team invite links; **RLS isolation** (a user
+can't see another's teams/schedules); the `kc_private` workers are unreachable via
+the Data API (no impersonation). Login persists across refresh on Firefox, Safari,
+and iOS (same-origin cookie + cookie-based `restoreSession`).
 
 ## Deferred
 **Billing (Stripe).** Neon can't receive webhooks, so subscriptions would need
