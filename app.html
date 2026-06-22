@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Keeping Cadence</title>
 <!-- #LLM-generated -->
 <style>
@@ -48,7 +48,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
     background: var(--bg);
     color: var(--ink);
-    padding: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 1rem max(1rem, env(safe-area-inset-left));
     line-height: 1.45;
     font-size: 16px;
   }
@@ -581,7 +581,7 @@
   .logged-recap { margin-top: 0.35rem; }
 
   @media (max-width: 520px) {
-    body { padding: 0.5rem; font-size: 15px; line-height: 1.35; }
+    body { padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) 0.5rem max(0.5rem, env(safe-area-inset-left)); font-size: 15px; line-height: 1.35; }
     h1 { font-size: 0.95rem; }
     .week-label { font-size: 0.8rem; margin-top: 0.15rem; }
 
@@ -600,6 +600,7 @@
     }
     .toolbar button {
       padding: 0.3rem 0.55rem; font-size: 0.85rem;
+      flex: 1 1 auto; white-space: nowrap;
     }
     .toolbar .week-picker {
       width: 100%; justify-content: space-between;
